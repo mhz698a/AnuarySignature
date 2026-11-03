@@ -227,13 +227,18 @@ class CharacterManager:
                             # Sincronizar campos de credencial con el nombre actual de la carpeta
                             char_data["year"] = year
                             char_data["position"] = position
-                            char_data["name"] = name
-                            char_data["alterego"] = alterego
+                            # Mantener los nombres editables de la credencial. La carpeta
+                            # conserva su nombre histórico y solo aporta fallbacks iniciales.
+                            if not char_data.get("name"):
+                                char_data["name"] = name
+                            if not char_data.get("alterego"):
+                                char_data["alterego"] = alterego
                             char_data["birthday"] = birthday
                             char_data["age"] = age
-                            # La credencial detectada es la única referencia persistente de ubicación.
+                            # Conservar el archivo JSON que ya existe dentro de la carpeta.
+                            credential_json_file = found_json_file or target_json
                             char_data.pop("character_path", None)
-                            char_data["character_json_path"] = str(target_json.resolve())
+                            char_data["character_json_path"] = str(credential_json_file.resolve())
 
                             # Si la ruta de imagen guardada dejó de existir, recuperar una imagen local.
                             icon_path = str(char_data.get("icon_path", "")).strip()
@@ -247,19 +252,12 @@ class CharacterManager:
 
                             char_data.setdefault("secondary_color", "")
 
-                            # Guardar en target_json
+                            # Guardar en el mismo archivo de credencial detectado.
                             try:
-                                with open(target_json, "w", encoding="utf-8") as jf:
+                                with open(credential_json_file, "w", encoding="utf-8") as jf:
                                     json.dump(self._credential_payload(char_data), jf, indent=4, ensure_ascii=False)
                             except Exception as e:
                                 print(f"Error guardando JSON sincronizado en personaje: {e}")
-
-                            # Si el archivo viejo tenía un nombre diferente, eliminarlo
-                            if found_json_file and found_json_file.resolve() != target_json.resolve():
-                                try:
-                                    found_json_file.unlink()
-                                except Exception as e:
-                                    print(f"Error eliminando JSON anterior: {e}")
 
                         else:
                             # Buscar la primera imagen disponible en la carpeta del personaje.

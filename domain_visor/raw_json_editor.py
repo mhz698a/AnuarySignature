@@ -26,10 +26,10 @@ class JSONSyntaxHighlighter(QSyntaxHighlighter):
     """Dark-theme JSON syntax highlighter that can be attached to any QTextDocument."""
 
     _STRING_PATTERN = re.compile(r'"(?:\\.|[^"\\])*"')
-    _KEY_PATTERN = re.compile(r'"(?:\\.|[^"\\])*"(?=\\s*:)')
-    _NUMBER_PATTERN = re.compile(r"-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?")
-    _LITERAL_PATTERN = re.compile(r"\\b(?:true|false|null)\\b")
-    _PUNCTUATION_PATTERN = re.compile(r"[{}\\[\\],:]")
+    _KEY_PATTERN = re.compile(r'"(?:\\.|[^"\\])*"(?=\s*:)')
+    _NUMBER_PATTERN = re.compile(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?")
+    _LITERAL_PATTERN = re.compile(r"\b(?:true|false|null)\b")
+    _PUNCTUATION_PATTERN = re.compile(r"[{}\[\],:]")
 
     def __init__(self, document):
         super().__init__(document)
@@ -48,29 +48,30 @@ class JSONSyntaxHighlighter(QSyntaxHighlighter):
         return fmt
 
     def highlightBlock(self, text):
-        key_ranges = []
-        for match in self._KEY_PATTERN.finditer(text):
+        string_matches = list(self._STRING_PATTERN.finditer(text))
+        key_matches = list(self._KEY_PATTERN.finditer(text))
+        string_ranges = [match.span() for match in string_matches]
+
+        for match in key_matches:
             start, end = match.span()
-            key_ranges.append((start, end))
             self.setFormat(start, end - start, self.key_format)
 
-        for match in self._STRING_PATTERN.finditer(text):
+        for match in string_matches:
             start, end = match.span()
-            if any(start < key_end and end > key_start for key_start, key_end in key_ranges):
-                continue
-            self.setFormat(start, end - start, self.string_format)
+            if not any(start == key_start and end == key_end for key_start, key_end in [m.span() for m in key_matches]):
+                self.setFormat(start, end - start, self.string_format)
 
-        for match in self._NUMBER_PATTERN.finditer(text):
-            start, end = match.span()
-            self.setFormat(start, end - start, self.number_format)
-
-        for match in self._LITERAL_PATTERN.finditer(text):
-            start, end = match.span()
-            self.setFormat(start, end - start, self.literal_format)
-
-        for match in self._PUNCTUATION_PATTERN.finditer(text):
-            start, end = match.span()
-            self.setFormat(start, end - start, self.punctuation_format)
+        token_rules = (
+            (self._NUMBER_PATTERN, self.number_format),
+            (self._LITERAL_PATTERN, self.literal_format),
+            (self._PUNCTUATION_PATTERN, self.punctuation_format),
+        )
+        for pattern, fmt in token_rules:
+            for match in pattern.finditer(text):
+                start, end = match.span()
+                if any(start < string_end and end > string_start for string_start, string_end in string_ranges):
+                    continue
+                self.setFormat(start, end - start, fmt)
 
 
 class RawJSONEditorDialog(QDialog):
@@ -167,6 +168,7 @@ class RawJSONEditorDialog(QDialog):
             json.loads(self.editor.toPlainText())
         except json.JSONDecodeError as error:
             self.save_button.setEnabled(False)
+            self.error_label.setStyleSheet("color: #F48771; padding: 2px 4px;")
             self.error_label.setText(
                 f"JSONDecodeError: {error.msg} (línea {error.lineno}, columna {error.colno})"
             )
@@ -210,7 +212,7 @@ class RawJSONEditorDialog(QDialog):
     def _accept_json(self):
         try:
             self.json_data = json.loads(self.editor.toPlainText())
-        except json.JSONDecodeError as error:
+        except json.JSONDecodeError:
             self.validate_json()
             self.editor.setFocus()
             return

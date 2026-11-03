@@ -322,7 +322,7 @@ class VasculumApp(QMainWindow):
             QMessageBox.warning(
                 self,
                 "GalleryAnuary",
-                f"El archivo seleccionado no existe:\\n{selected_file}"
+                f"El archivo seleccionado no existe:\n{selected_file}"
             )
             return
 
@@ -338,7 +338,7 @@ class VasculumApp(QMainWindow):
         QMessageBox.information(
             self,
             "GalleryAnuary",
-            f"Acceso guardado:\\n{selected_file}"
+            f"Acceso guardado:\n{selected_file}"
         )
 
     def open_credential_with_galleryanuary(self, credential_directory):
@@ -359,7 +359,7 @@ class VasculumApp(QMainWindow):
             QMessageBox.warning(
                 self,
                 "GalleryAnuary",
-                f"El ejecutable configurado no existe:\\n{gallery_path}\\n"
+                f"El ejecutable configurado no existe:\n{gallery_path}\n"
                 "Vuelve a definir el acceso desde el menú Ajustes."
             )
             return
@@ -369,7 +369,7 @@ class VasculumApp(QMainWindow):
             QMessageBox.warning(
                 self,
                 "GalleryAnuary",
-                f"No se encontró la carpeta de la credencial:\\n{credential_path}"
+                f"No se encontró la carpeta de la credencial:\n{credential_path}"
             )
             return
 
@@ -391,7 +391,7 @@ class VasculumApp(QMainWindow):
             QMessageBox.critical(
                 self,
                 "GalleryAnuary",
-                f"No se pudo iniciar GalleryAnuary:\\n{error}"
+                f"No se pudo iniciar GalleryAnuary:\n{error}"
             )
 
     def confirm_and_regenerate_cache(self):

@@ -2,8 +2,6 @@
 
 import os
 import json
-import subprocess
-import sys
 import traceback
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -477,7 +475,7 @@ class CharacterEditDialog(QDialog):
                 )
         except OSError as exc:
             QMessageBox.critical(
-                self, "Error", f"No se pudo leer la credencial:\\n{exc}"
+                self, "Error", f"No se pudo leer la credencial:\n{exc}"
             )
             return
 
@@ -504,10 +502,10 @@ class CharacterEditDialog(QDialog):
         try:
             with credential_file.open("w", encoding="utf-8") as json_file:
                 json.dump(raw_data, json_file, indent=4, ensure_ascii=False)
-                json_file.write("\\n")
+                json_file.write("\n")
         except OSError as exc:
             QMessageBox.critical(
-                self, "Error", f"No se pudo guardar la credencial:\\n{exc}"
+                self, "Error", f"No se pudo guardar la credencial:\n{exc}"
             )
             return
 
@@ -612,13 +610,13 @@ class CharacterEditDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     "Validación",
-                    f"No se encontró la credencial original:\\n{original_json_file}"
+                    f"No se encontró la credencial original:\n{original_json_file}"
                 )
                 return
 
             new_json_file = original_char_path / f"__{new_name}__.json"
             if new_json_file.exists() and new_json_file.resolve() != original_json_file.resolve():
-                QMessageBox.warning(self, "Validación", f"La credencial destino ya existe:\\n{new_json_file}")
+                QMessageBox.warning(self, "Validación", f"La credencial destino ya existe:\n{new_json_file}")
                 return
 
             # Recolectar ropa interior seleccionada.
@@ -649,7 +647,7 @@ class CharacterEditDialog(QDialog):
 
             with new_json_file.open("w", encoding="utf-8") as json_file:
                 json.dump({"character_data": credential_data}, json_file, indent=4, ensure_ascii=False)
-                json_file.write("\\n")
+                json_file.write("\n")
 
             # Si cambió el nombre, sustituir solamente el nombre del archivo JSON.
             # La carpeta del personaje nunca se renombra.
@@ -668,5 +666,5 @@ class CharacterEditDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Error al Guardar",
-                f"Ocurrió un error guardando el personaje:\\n{exc}\\n\\nDetalles:\\n{tb}"
+                f"Ocurrió un error guardando el personaje:\n{exc}\n\nDetalles:\n{tb}"
             )
