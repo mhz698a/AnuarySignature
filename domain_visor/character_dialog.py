@@ -26,8 +26,8 @@ class CharacterEditDialog(QDialog):
 
         self.setWindowTitle("Modificar Personaje")
         self.setModal(True)
-        self.setMinimumWidth(600)
-        self.resize(650, 600)
+        self.setMinimumWidth(900)
+        self.resize(1000, 650)
 
         # Quitar botón de ayuda
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -532,7 +532,7 @@ class CharacterEditDialog(QDialog):
         return self.initial_character_path / asset_path
 
     def _serialize_asset_path(self, raw_path):
-        """Mantiene relativa la ruta de recursos que se moverá junto al personaje."""
+        """Mantiene relativa la ruta de recursos dentro de la carpeta original."""
         raw_path = str(raw_path).strip()
         if not raw_path:
             return ""

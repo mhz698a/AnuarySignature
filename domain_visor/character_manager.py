@@ -224,7 +224,7 @@ class CharacterManager:
                                 pass
 
                         if char_data:
-                            # Sincronizar campos de credencial con el nombre actual de la carpeta
+                            # Leer los metadatos estructurales desde el nombre de carpeta.
                             char_data["year"] = year
                             char_data["position"] = position
                             # Mantener los nombres editables de la credencial. La carpeta
