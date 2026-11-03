@@ -1,6 +1,6 @@
 # domain_visor/progress_dialog.py
 
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar
+from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QProgressBar
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
 from PyQt6.QtGui import QPixmap
 import pathlib
@@ -93,8 +93,13 @@ class ProgressDialog(QDialog):
         self.setWindowTitle("Procesando indexación de personajes e imágenes...")
         self.setFixedSize(450, 150)
 
-        # Eliminar botón de ayuda del encabezado de la ventana
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        # El diálogo es una ventana superior independiente, sin marco ni barra de título.
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
         # Aplicar colores del tema
         self.setStyleSheet(f"""
@@ -149,10 +154,24 @@ class ProgressDialog(QDialog):
         # Iniciar hilo al abrir la ventana
         self.thread.started.connect(self.worker.run)
 
+    def _center_on_primary_screen(self):
+        """Centra el diálogo en el área útil del monitor principal."""
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        geometry = screen.availableGeometry()
+        self.move(
+            geometry.center().x() - self.width() // 2,
+            geometry.center().y() - self.height() // 2,
+        )
+
     def start_loading(self):
-        """Inicia el hilo de escaneo y muestra el diálogo."""
-        self.thread.start()
+        """Muestra el diálogo centrado e inicia el hilo de escaneo."""
+        self._center_on_primary_screen()
         self.show()
+        self.raise_()
+        self.activateWindow()
+        self.thread.start()
 
     def on_scan_finished(self):
         """Maneja el fin de la indexación, deteniendo el hilo y cerrando el diálogo."""

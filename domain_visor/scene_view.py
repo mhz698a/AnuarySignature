@@ -1,6 +1,7 @@
 # domain_visor/scene_view.py
 
 import json
+import os
 import subprocess
 import sys
 import traceback
@@ -13,6 +14,9 @@ from PyQt6.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
 
 from domain_visor.theme import Theme
+from domain_visor.autostart import is_startup_enabled, set_startup_enabled
+from domain_visor.dependent_path_dialog import DependentPathDialog
+from domain_visor.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
 from domain_visor.render_engine import RenderEngine
 from domain_visor.json_editor import JSONEditorPanel
 from domain_visor.character_manager import CharacterManager
@@ -156,15 +160,23 @@ class VasculumApp(QMainWindow):
 
     galleryanuary_requested = pyqtSignal(str)
 
-    def __init__(self, json_path, json_title):
+    def __init__(self, json_path, json_title, dependent_path=None):
         super().__init__()
         self.json_path = json_path
         self._json_title = json_title
         self._first_show = True
+        self._startup_complete = False
+        self._startup_loading_started = False
+        self._closing_application = False
         self.setWindowTitle("Infraestructura de años, dominios y superdominios")
         self.setStyleSheet(f"background-color: {Theme.APP_BACKGROUND}; color: {Theme.TEXT_WHITE};")
         
         self.settings = QSettings("etudetools", "year_struct_vasculum")
+        self.dependent_path = (
+            Path(dependent_path).expanduser()
+            if dependent_path is not None
+            else get_dependent_path(self.settings)
+        )
         self._allow_application_exit = False
         self.tray_controller = None
         self.galleryanuary_requested.connect(
@@ -173,7 +185,7 @@ class VasculumApp(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        self.character_manager = CharacterManager()
+        self.character_manager = CharacterManager(base_path=self.dependent_path)
         # Sincronizar el gestor de personajes a nivel de YearItem
         YearItem._char_manager = self.character_manager
 
@@ -331,6 +343,14 @@ class VasculumApp(QMainWindow):
         self.regen_cache_action.triggered.connect(self.confirm_and_regenerate_cache)
 
         settings_menu = self.menu_bar.addMenu("Ajustes")
+        self.startup_action = settings_menu.addAction("Iniciar al inicio")
+        self.startup_action.triggered.connect(self.manage_startup)
+
+        self.dependent_path_action = settings_menu.addAction(
+            "Agregar unidad dependientes"
+        )
+        self.dependent_path_action.triggered.connect(self.configure_dependent_path)
+
         self.galleryanuary_access_action = settings_menu.addAction(
             "Definir Acceso a GalleryAnuary"
         )
@@ -342,11 +362,95 @@ class VasculumApp(QMainWindow):
         self.about_action = help_menu.addAction("Acerca de...")
         self.about_action.triggered.connect(self.show_about_dialog)
 
-        # 8. Mostrar Ventana de Progreso en Segundo Plano para Indexación de JSON/Personajes y carga de imágenes
-        self.progress_dialog = ProgressDialog(self.character_manager, self)
-        # Una vez que termine la indexación, realizamos el re-renderizado inicial de forma segura
-        self.progress_dialog.finished.connect(self.trigger_render)
+        # El progreso se inicia desde el entry point después de adquirir el mutex
+        # y configurar la bandeja. La ventana principal permanece oculta durante la carga.
+        self.progress_dialog = ProgressDialog(self.character_manager, None)
+        self.progress_dialog.finished.connect(self._complete_initial_startup)
+
+    def start_initial_loading(self):
+        """Inicia una sola vez el diálogo de progreso de arranque."""
+        if self._startup_loading_started:
+            return
+        self._startup_loading_started = True
         self.progress_dialog.start_loading()
+
+    def _complete_initial_startup(self, result=None):
+        """Renderiza la escena y muestra la ventana cuando termina la indexación."""
+        if self._closing_application:
+            return
+        self._startup_complete = True
+        self.trigger_render()
+        self.showMaximized()
+
+    def manage_startup(self):
+        """Muestra el estado del inicio automático y permite activarlo o desactivarlo."""
+        active = is_startup_enabled()
+        status_text = (
+            "El inicio automático está ACTIVADO para este usuario de Windows."
+            if active
+            else "El inicio automático está DESACTIVADO para este usuario de Windows."
+        )
+
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Information)
+        dialog.setWindowTitle("Iniciar al inicio")
+        dialog.setText(status_text)
+        activate_button = dialog.addButton(
+            "Activar", QMessageBox.ButtonRole.ActionRole
+        )
+        deactivate_button = dialog.addButton(
+            "Desactivar", QMessageBox.ButtonRole.ActionRole
+        )
+        cancel_button = dialog.addButton(
+            "Cancelar", QMessageBox.ButtonRole.RejectRole
+        )
+        dialog.setDefaultButton(cancel_button)
+        dialog.exec()
+
+        clicked = dialog.clickedButton()
+        if clicked not in (activate_button, deactivate_button):
+            return
+
+        try:
+            set_startup_enabled(
+                clicked is activate_button,
+                str(Path(sys.argv[0]).expanduser().resolve()),
+            )
+        except OSError as error:
+            QMessageBox.warning(
+                self, "Iniciar al inicio", f"No se pudo cambiar la configuración:\n{error}"
+            )
+            return
+
+        updated_status = (
+            "El inicio automático quedó ACTIVADO."
+            if clicked is activate_button
+            else "El inicio automático quedó DESACTIVADO."
+        )
+        QMessageBox.information(self, "Iniciar al inicio", updated_status)
+
+    def configure_dependent_path(self):
+        """Permite seleccionar y guardar la carpeta raíz de los datos dependientes."""
+        dialog = DependentPathDialog(self.dependent_path, self)
+        dialog.path_selected.connect(self._set_dependent_path)
+        dialog.exec()
+
+    def _set_dependent_path(self, selected_path):
+        path = Path(selected_path).expanduser()
+        if not path.is_dir():
+            QMessageBox.warning(
+                self,
+                "Carpeta dependiente",
+                f"La carpeta seleccionada no existe:\n{path}",
+            )
+            return
+
+        self.dependent_path = path
+        self.settings.setValue("dependent_container_path", str(path))
+        self.character_manager.base_path = path
+        self.show_status_message(
+            f"Carpeta dependiente guardada: {path}", 5000
+        )
 
     def define_galleryanuary_access(self):
         """Selecciona y persiste el ejecutable o script de GalleryAnuary."""
@@ -458,9 +562,58 @@ class VasculumApp(QMainWindow):
 
     def show_domain_viewer(self):
         """Muestra y activa la ventana desde el icono de bandeja."""
+        if not self._startup_complete or self._closing_application:
+            return
         self.showMaximized()
         self.raise_()
         self.activateWindow()
+
+    def restart_service(self):
+        """Lanza el proceso auxiliar de reinicio y cierra esta instancia de inmediato."""
+        entry_script = Path(sys.argv[0]).expanduser().resolve()
+        restart_script = Path(__file__).resolve().parents[1] / "restart_service.py"
+        if not restart_script.is_file():
+            QMessageBox.warning(
+                self,
+                "Restart Service",
+                f"No se encontró el script de reinicio:\n{restart_script}",
+            )
+            return
+
+        command = [
+            sys.executable,
+            str(restart_script),
+            str(os.getpid()),
+            str(entry_script),
+            *sys.argv[1:],
+        ]
+        creation_flags = 0
+        if os.name == "nt":
+            creation_flags = (
+                getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            )
+
+        try:
+            subprocess.Popen(
+                command,
+                cwd=str(entry_script.parent),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=creation_flags,
+            )
+        except OSError as error:
+            QMessageBox.critical(
+                self,
+                "Restart Service",
+                f"No se pudo iniciar el proceso de reinicio:\n{error}",
+            )
+            return
+
+        self._allow_application_exit = True
+        self.close()
 
     def exit_from_tray(self):
         """Acepta el cierre solicitado y confirmado desde el menú de bandeja."""
@@ -675,12 +828,15 @@ class VasculumApp(QMainWindow):
 
             self._allow_application_exit = True
 
+        self._closing_application = True
         self.settings.setValue("splitter_state", self.splitter.saveState())
 
         if hasattr(self, "progress_dialog") and self.progress_dialog:
             try:
-                self.progress_dialog.thread.quit()
-                self.progress_dialog.thread.wait()
+                if self.progress_dialog.thread.isRunning():
+                    self.progress_dialog.thread.quit()
+                    self.progress_dialog.thread.wait()
+                self.progress_dialog.close()
             except Exception:
                 pass
 

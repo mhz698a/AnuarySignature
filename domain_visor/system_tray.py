@@ -13,6 +13,7 @@ class SystemTrayController(QObject):
     """System tray UI decoupled from the Domain Viewer main window."""
 
     show_window_requested = pyqtSignal()
+    restart_requested = pyqtSignal()
     exit_requested = pyqtSignal()
 
     def __init__(self, icon_path, parent=None):
@@ -42,6 +43,10 @@ class SystemTrayController(QObject):
         self.show_action = self.menu.addAction("Show Domain Viewer")
         self.show_action.triggered.connect(self._request_show_window)
 
+        self.menu.addSeparator()
+        self.restart_action = self.menu.addAction("Restart Service")
+        self.restart_action.triggered.connect(self._request_restart)
+
         self.exit_action = self.menu.addAction("Exit")
         self.exit_action.triggered.connect(self._confirm_exit)
 
@@ -64,6 +69,9 @@ class SystemTrayController(QObject):
 
     def _request_show_window(self):
         self.show_window_requested.emit()
+
+    def _request_restart(self):
+        self.restart_requested.emit()
 
     def _on_activated(self, reason):
         if reason in (
