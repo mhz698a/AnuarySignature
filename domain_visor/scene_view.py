@@ -477,7 +477,7 @@ class VasculumApp(QMainWindow):
             QMessageBox.critical(
                 self,
                 "Verbose Resolve Table",
-                "No se pudieron cargar los archivos de resoluciones verbosas:\\n"
+                "No se pudieron cargar los archivos de resoluciones verbosas:\n"
                 f"{error}",
             )
             return
