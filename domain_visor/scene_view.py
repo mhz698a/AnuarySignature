@@ -7,7 +7,7 @@ import traceback
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QGraphicsView, QGraphicsScene, QSplitter, QPushButton,
-    QMenuBar, QMenu, QSlider, QMessageBox, QFileDialog
+    QMenuBar, QMenu, QSlider, QMessageBox, QFileDialog, QLabel
 )
 from PyQt6.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
@@ -22,15 +22,18 @@ from domain_visor.about_dialog import AboutDialog
 
 class ZoomableGraphicsView(QGraphicsView):
     """
-    Vista de QGraphics personalizada que soporta zoom controlado con la rueda del mouse,
-    métodos auxiliares de escala y un deslizador (QSlider) de zoom.
+    Vista de QGraphics personalizada con zoom mediante Ctrl + rueda y navegación.
     """
+
+    zoom_changed = pyqtSignal(float)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.zoom_factor = 1.0
         self.min_zoom = 0.2
         self.max_zoom = 5.0
-        
+        self.zoom_slider = None
+
         # Anclar el zoom en el centro de la vista
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
 
@@ -56,66 +59,40 @@ class ZoomableGraphicsView(QGraphicsView):
         """)
         self.toggle_button.adjustSize()
 
-        # Crear deslizador (QSlider) de zoom en la esquina inferior derecha
-        self.zoom_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self.zoom_slider.setRange(int(self.min_zoom * 100), int(self.max_zoom * 100))
-        self.zoom_slider.setValue(int(self.zoom_factor * 100))
-        self.zoom_slider.setFixedWidth(130)
-        self.zoom_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: 1px solid #555555;
-                height: 6px;
-                background: #2d2d2d;
-                margin: 2px 0;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #85c1e9;
-                border: 1px solid #555555;
-                width: 14px;
-                height: 14px;
-                margin: -5px 0;
-                border-radius: 7px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #aed6f1;
-            }
-        """)
-        self.zoom_slider.valueChanged.connect(self._on_slider_value_changed)
-
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.update_controls_position()
 
     def update_controls_position(self):
-        scrollbar_height = self.horizontalScrollBar().height() if self.horizontalScrollBar().isVisible() else 0
-        scrollbar_width = self.verticalScrollBar().width() if self.verticalScrollBar().isVisible() else 0
-
-        if hasattr(self, 'toggle_button') and self.toggle_button:
-            x = 15
-            y = self.height() - self.toggle_button.height() - 15 - scrollbar_height
-            self.toggle_button.move(x, y)
-
-        if hasattr(self, 'zoom_slider') and self.zoom_slider:
-            x = self.width() - self.zoom_slider.width() - 15 - scrollbar_width
-            y = self.height() - self.zoom_slider.height() - 15 - scrollbar_height
-            self.zoom_slider.move(x, y)
+        scrollbar_height = (
+            self.horizontalScrollBar().height()
+            if self.horizontalScrollBar().isVisible()
+            else 0
+        )
+        x = 15
+        y = self.height() - self.toggle_button.height() - 15 - scrollbar_height
+        self.toggle_button.move(x, y)
 
     def update_button_position(self):
         self.update_controls_position()
 
     def _on_slider_value_changed(self, value):
-        target_zoom = value / 100.0
+        target_zoom = max(
+            self.min_zoom,
+            min(self.max_zoom, value / 100.0)
+        )
         if self.zoom_factor != target_zoom:
             relative_factor = target_zoom / self.zoom_factor
             self.scale(relative_factor, relative_factor)
             self.zoom_factor = target_zoom
+            self.zoom_changed.emit(self.zoom_factor)
 
     def _sync_slider(self):
-        if hasattr(self, 'zoom_slider') and self.zoom_slider:
+        if self.zoom_slider is not None:
             self.zoom_slider.blockSignals(True)
-            self.zoom_slider.setValue(int(self.zoom_factor * 100))
+            self.zoom_slider.setValue(int(round(self.zoom_factor * 100)))
             self.zoom_slider.blockSignals(False)
+        self.zoom_changed.emit(self.zoom_factor)
 
     def wheelEvent(self, event):
         # La rueda normal desplaza verticalmente la escena. Ctrl + rueda se
@@ -188,6 +165,8 @@ class VasculumApp(QMainWindow):
         self.setStyleSheet(f"background-color: {Theme.APP_BACKGROUND}; color: {Theme.TEXT_WHITE};")
         
         self.settings = QSettings("etudetools", "year_struct_vasculum")
+        self._allow_application_exit = False
+        self.tray_controller = None
         self.galleryanuary_requested.connect(
             self.open_credential_with_galleryanuary
         )
@@ -223,6 +202,61 @@ class VasculumApp(QMainWindow):
         # Soportar arrastre directo estilo mano además de las barras de desplazamiento (Paso 2)
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.splitter.addWidget(self.view)
+
+        # El control del zoom vive en la barra de estado, fuera del área de dibujo.
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.zoom_slider.setRange(
+            int(self.view.min_zoom * 100),
+            int(self.view.max_zoom * 100)
+        )
+        self.zoom_slider.setValue(int(self.view.zoom_factor * 100))
+        self.zoom_slider.setFixedWidth(150)
+        self.zoom_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #555555;
+                height: 6px;
+                background: #2d2d2d;
+                margin: 2px 0;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #85c1e9;
+                border: 1px solid #555555;
+                width: 14px;
+                height: 14px;
+                margin: -5px 0;
+                border-radius: 7px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #aed6f1;
+            }
+        """)
+        self.view.zoom_slider = self.zoom_slider
+        self.zoom_slider.valueChanged.connect(self.view._on_slider_value_changed)
+
+        self.zoom_percentage_label = QLabel("100%", self)
+        self.zoom_percentage_label.setMinimumWidth(48)
+        self.zoom_percentage_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.view.zoom_changed.connect(self.update_zoom_percentage)
+
+        status_bar = self.statusBar()
+        status_bar.setStyleSheet("""
+            QStatusBar {
+                background-color: #1b1b1b;
+                color: #d4d4d4;
+                border-top: 1px solid #333333;
+            }
+            QStatusBar::item {
+                border: none;
+            }
+        """)
+        zoom_label = QLabel("Zoom", self)
+        zoom_label.setStyleSheet("color: #bdbdbd; padding-left: 6px;")
+        self.zoom_percentage_label.setStyleSheet("color: #ffffff; padding-right: 8px;")
+        status_bar.addPermanentWidget(zoom_label)
+        status_bar.addPermanentWidget(self.zoom_slider)
+        status_bar.addPermanentWidget(self.zoom_percentage_label)
+        status_bar.showMessage("Visor de dominios listo", 3000)
 
         # 4. Crear la escena y asignarla al View
         self.scene = QGraphicsScene()
@@ -411,6 +445,28 @@ class VasculumApp(QMainWindow):
                 f"No se pudo iniciar GalleryAnuary:\n{error}"
             )
 
+    def update_zoom_percentage(self, zoom_factor):
+        self.zoom_percentage_label.setText(f"{zoom_factor:.0%}")
+
+    def show_status_message(self, message, timeout_ms=5000):
+        """Muestra mensajes temporales en la barra de estado."""
+        self.statusBar().showMessage(str(message), max(0, int(timeout_ms)))
+
+    def attach_tray_controller(self, tray_controller):
+        """Asocia el controlador independiente de bandeja con la ventana."""
+        self.tray_controller = tray_controller
+
+    def show_domain_viewer(self):
+        """Muestra y activa la ventana desde el icono de bandeja."""
+        self.showMaximized()
+        self.raise_()
+        self.activateWindow()
+
+    def exit_from_tray(self):
+        """Acepta el cierre solicitado y confirmado desde el menú de bandeja."""
+        self._allow_application_exit = True
+        self.close()
+
     def confirm_and_regenerate_cache(self):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Regenerar caché")
@@ -500,6 +556,7 @@ class VasculumApp(QMainWindow):
 
         # 3. Re-renderizar escena
         self.trigger_render()
+        self.show_status_message("Cambios guardados.", 2500)
 
     def trigger_render(self):
         try:
@@ -571,6 +628,66 @@ class VasculumApp(QMainWindow):
         self.progress_dialog.start_loading()
 
     def closeEvent(self, event):
-        # Guardar el estado del splitter al cerrar la aplicación
+        if not self._allow_application_exit:
+            dialog = QMessageBox(self)
+            dialog.setIcon(QMessageBox.Icon.Question)
+            dialog.setWindowTitle("Salir")
+            dialog.setText("¿Desea salir de este programa?")
+
+            close_button = dialog.addButton(
+                "Cerrar la aplicacion",
+                QMessageBox.ButtonRole.AcceptRole
+            )
+            minimize_button = dialog.addButton(
+                "Minimizar en la bandeja",
+                QMessageBox.ButtonRole.ActionRole
+            )
+            cancel_button = dialog.addButton(
+                "Cancelar",
+                QMessageBox.ButtonRole.RejectRole
+            )
+            dialog.setDefaultButton(cancel_button)
+            dialog.exec()
+
+            clicked_button = dialog.clickedButton()
+            if clicked_button is minimize_button:
+                if (
+                    self.tray_controller is None
+                    or not self.tray_controller.is_available()
+                ):
+                    QMessageBox.warning(
+                        self,
+                        "Bandeja del sistema no disponible",
+                        "No se puede minimizar en la bandeja porque el sistema "
+                        "no tiene un área de notificación disponible."
+                    )
+                    event.ignore()
+                    return
+
+                self.settings.setValue("splitter_state", self.splitter.saveState())
+                self.hide()
+                event.ignore()
+                return
+
+            if clicked_button is not close_button:
+                event.ignore()
+                return
+
+            self._allow_application_exit = True
+
         self.settings.setValue("splitter_state", self.splitter.saveState())
-        super().closeEvent(event)
+
+        if hasattr(self, "progress_dialog") and self.progress_dialog:
+            try:
+                self.progress_dialog.thread.quit()
+                self.progress_dialog.thread.wait()
+            except Exception:
+                pass
+
+        if self.tray_controller is not None:
+            self.tray_controller.hide()
+
+        event.accept()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
