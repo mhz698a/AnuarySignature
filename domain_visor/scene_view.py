@@ -375,12 +375,12 @@ class VasculumApp(QMainWindow):
         self.progress_dialog.start_loading()
 
     def _complete_initial_startup(self, result=None):
-        """Renderiza la escena y muestra la ventana cuando termina la indexación."""
+        """Termina la carga y prepara el visor sin mostrar la ventana principal."""
         if self._closing_application:
             return
         self._startup_complete = True
         self.trigger_render()
-        self.showMaximized()
+        # El visor permanece oculto; el usuario puede mostrarlo desde la bandeja.
 
     def manage_startup(self):
         """Muestra el estado del inicio automático y permite activarlo o desactivarlo."""
