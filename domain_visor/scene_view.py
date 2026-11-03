@@ -23,6 +23,7 @@ from domain_visor.character_manager import CharacterManager
 from domain_visor.progress_dialog import ProgressDialog
 from domain_visor.year_item import YearItem
 from domain_visor.about_dialog import AboutDialog
+from domain_visor.verbose_resolve_dialog import VerboseResolveDialog
 
 class ZoomableGraphicsView(QGraphicsView):
     """
@@ -358,6 +359,14 @@ class VasculumApp(QMainWindow):
             self.define_galleryanuary_access
         )
 
+        tools_menu = self.menu_bar.addMenu("Herramientas")
+        self.verbose_resolve_action = tools_menu.addAction(
+            "Gestionar resoluciones verbosas"
+        )
+        self.verbose_resolve_action.triggered.connect(
+            self.manage_verbose_resolutions
+        )
+
         help_menu = self.menu_bar.addMenu("Ayuda")
         self.about_action = help_menu.addAction("Acerca de...")
         self.about_action.triggered.connect(self.show_about_dialog)
@@ -451,6 +460,34 @@ class VasculumApp(QMainWindow):
         self.show_status_message(
             f"Carpeta dependiente guardada: {path}", 5000
         )
+
+    def manage_verbose_resolutions(self):
+        """Abre la tabla editable para las resoluciones verbosas."""
+        structure_dir = Path(__file__).resolve().parents[1] / "__structure__"
+        architecture_path = structure_dir / "verbose_architecture.json"
+        business_path = structure_dir / "verbose_business.json"
+
+        try:
+            dialog = VerboseResolveDialog(
+                architecture_path=architecture_path,
+                business_path=business_path,
+                parent=self,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            QMessageBox.critical(
+                self,
+                "Verbose Resolve Table",
+                "No se pudieron cargar los archivos de resoluciones verbosas:\\n"
+                f"{error}",
+            )
+            return
+
+        dialog.saved.connect(
+            lambda: self.show_status_message(
+                "Resoluciones verbosas guardadas correctamente.", 4000
+            )
+        )
+        dialog.exec()
 
     def define_galleryanuary_access(self):
         """Selecciona y persiste el ejecutable o script de GalleryAnuary."""
