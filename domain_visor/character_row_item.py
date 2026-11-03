@@ -252,18 +252,15 @@ class CharacterIconItem(QGraphicsItem):
 
             self.update()
 
-            main_window = None
             if view:
-                parent_widget = view.parent()
-                while parent_widget:
-                    from domain_visor.scene_view import VasculumApp
-                    if isinstance(parent_widget, VasculumApp):
-                        main_window = parent_widget
-                        break
-                    parent_widget = parent_widget.parent()
-
-            if main_window:
-                main_window.trigger_render()
+                from domain_visor.scene_view import VasculumApp
+                main_window = view.window()
+                if isinstance(main_window, VasculumApp):
+                    main_window.trigger_render()
+                    main_window.show_status_message(
+                        "Credencial actualizada correctamente.",
+                        3000
+                    )
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._size, self._size)

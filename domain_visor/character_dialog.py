@@ -15,16 +15,31 @@ from domain_visor.raw_json_editor import RawJSONEditorDialog
 from domain_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
 
 class CharacterEditDialog(QDialog):
-    galleryanuary_requested = pyqtSignal(str)
-
     """
     Diálogo modal para editar los datos de un personaje en su archivo JSON.
     """
+
+    galleryanuary_requested = pyqtSignal(str)
+    FORM_CREDENTIAL_KEYS = frozenset({
+        "year",
+        "name",
+        "alterego",
+        "icon_path",
+        "background_path",
+        "type_underwear",
+        "short_masked_alterego",
+        "character_json_path",
+        "color_group",
+        "secondary_color",
+        "profession_group",
+        "time_of_year",
+    })
     def __init__(self, char_data, parent=None):
         super().__init__(parent)
         self.char_data = char_data.copy()  # Trabajar con una copia
         self.original_char_data = char_data
         self.saved = False
+        self._raw_data_staged = False
 
         self.setWindowTitle("Modificar Personaje")
         self.setModal(True)
@@ -136,11 +151,13 @@ class CharacterEditDialog(QDialog):
         # 2. Name
         scroll_layout.addWidget(QLabel("Nombre (Name):"), 1, 0)
         self.txt_name = QLineEdit(self.char_data.get("name", ""))
+        self.txt_name.setReadOnly(True)
         scroll_layout.addWidget(self.txt_name, 1, 1, 1, 2)
 
         # 3. Alterego
         scroll_layout.addWidget(QLabel("Alterego:"), 2, 0)
         self.txt_alterego = QLineEdit(self.char_data.get("alterego", ""))
+        self.txt_alterego.setReadOnly(True)
         scroll_layout.addWidget(self.txt_alterego, 2, 1, 1, 2)
 
         # 4. Icon Path (QLineEdit + Establecer + Abrir)
@@ -269,14 +286,6 @@ class CharacterEditDialog(QDialog):
 
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
-
-        # Forzar reemplazo inicial de espacios si los hubiera antes de conectar señales
-        self._replace_spaces_real_time(self.txt_name)
-        self._replace_spaces_real_time(self.txt_alterego)
-
-        # Conectar señales en tiempo real para reemplazar espacios por guiones bajos
-        self.txt_name.textChanged.connect(lambda: self._replace_spaces_real_time(self.txt_name))
-        self.txt_alterego.textChanged.connect(lambda: self._replace_spaces_real_time(self.txt_alterego))
 
         # Los metadatos que definen la carpeta se conservan exclusivamente desde su
         # ubicación real; editar una credencial no cambia el nombre de esa carpeta.
@@ -462,11 +471,50 @@ class CharacterEditDialog(QDialog):
 
         self.galleryanuary_requested.emit(str(credential_dir.resolve()))
 
+    def _apply_credential_data_to_form(self, credential_data):
+        """Actualiza todos los controles del formulario con el JSON validado."""
+        runtime_data = credential_data.copy()
+        for metadata_key in ("position", "birthday", "age"):
+            if metadata_key in self.original_char_data:
+                runtime_data[metadata_key] = self.original_char_data[metadata_key]
+
+        runtime_data["character_json_path"] = str(
+            self.initial_character_json_path.resolve()
+        )
+        self.char_data = runtime_data
+        self._raw_data_staged = True
+
+        self.txt_year.setText(str(credential_data["year"]))
+        self.txt_name.setText(credential_data["name"])
+        self.txt_alterego.setText(credential_data["alterego"])
+        self.txt_icon_path.setText(credential_data["icon_path"])
+        self.txt_bg_path.setText(credential_data["background_path"])
+        self.txt_short_masked.setText(credential_data["short_masked_alterego"])
+        self.txt_profession.setText(credential_data["profession_group"])
+        self.cb_color_group.setCurrentText(credential_data["color_group"])
+        self.cb_secondary_color.setCurrentText(credential_data["secondary_color"])
+        self.cb_time_of_year.setCurrentText(credential_data["time_of_year"])
+
+        self.selected_underwear = list(credential_data["type_underwear"])
+        self.populate_underwear_list()
+
     def open_raw_json_editor(self):
-        """Edita el archivo de credencial con el editor JSON reutilizable."""
+        """Edita el JSON y aplica sus valores al formulario sin cerrar el diálogo."""
         credential_file = self.initial_character_json_path
+
         try:
-            if credential_file.is_file():
+            if self._raw_data_staged:
+                staged_data = {
+                    key: value
+                    for key, value in self.char_data.items()
+                    if key not in {"position", "birthday", "age"}
+                }
+                initial_text = json.dumps(
+                    {"character_data": staged_data},
+                    indent=4,
+                    ensure_ascii=False
+                )
+            elif credential_file.is_file():
                 initial_text = credential_file.read_text(encoding="utf-8")
             else:
                 initial_text = json.dumps(
@@ -480,44 +528,98 @@ class CharacterEditDialog(QDialog):
             )
             return
 
-        editor = RawJSONEditorDialog(initial_text, parent=self)
-        if editor.exec() != QDialog.DialogCode.Accepted:
+        string_fields = self.FORM_CREDENTIAL_KEYS - {"year", "type_underwear"}
+        while True:
+            editor = RawJSONEditorDialog(initial_text, parent=self)
+            if editor.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            raw_data = editor.json_data
+            if not isinstance(raw_data, dict) or not isinstance(
+                raw_data.get("character_data"), dict
+            ):
+                QMessageBox.warning(
+                    self,
+                    "JSON inválido para credenciales",
+                    "La raíz debe contener un objeto 'character_data'. "
+                    "El JSON se devolverá al editor para corregirlo."
+                )
+                initial_text = editor.editor.toPlainText()
+                continue
+
+            credential_data = raw_data["character_data"]
+            # Estos valores pertenecen al nombre de la carpeta, no a la credencial.
+            for deprecated_field in ("position", "birthday", "age", "character_path"):
+                credential_data.pop(deprecated_field, None)
+
+            missing_keys = self.FORM_CREDENTIAL_KEYS - set(credential_data)
+            unknown_keys = set(credential_data) - self.FORM_CREDENTIAL_KEYS
+            extra_root_keys = set(raw_data) - {"character_data"}
+
+            if missing_keys or unknown_keys or extra_root_keys:
+                details = []
+                if missing_keys:
+                    details.append(
+                        "Llaves faltantes: " + ", ".join(sorted(missing_keys))
+                    )
+                if unknown_keys:
+                    details.append(
+                        "Llaves que no corresponden al formulario: "
+                        + ", ".join(sorted(unknown_keys))
+                    )
+                if extra_root_keys:
+                    details.append(
+                        "Llaves adicionales en la raíz: "
+                        + ", ".join(sorted(extra_root_keys))
+                    )
+                QMessageBox.warning(
+                    self,
+                    "Credencial incompleta o incompatible",
+                    "\n".join(details)
+                    + "\n\nEl documento se devolverá al editor. "
+                    "Corrige las llaves para que coincidan con el formulario."
+                )
+                initial_text = json.dumps(
+                    raw_data,
+                    indent=4,
+                    ensure_ascii=False
+                )
+                continue
+
+            invalid_fields = []
+            for field in string_fields:
+                if not isinstance(credential_data[field], str):
+                    invalid_fields.append(field)
+
+            try:
+                credential_data["year"] = int(credential_data["year"])
+            except (TypeError, ValueError):
+                invalid_fields.append("year")
+
+            underwear = credential_data["type_underwear"]
+            if not isinstance(underwear, list) or any(
+                not isinstance(item, str) for item in underwear
+            ):
+                invalid_fields.append("type_underwear")
+
+            if invalid_fields:
+                QMessageBox.warning(
+                    self,
+                    "Tipos de datos incompatibles",
+                    "Corrige estos campos en el JSON: "
+                    + ", ".join(sorted(set(invalid_fields)))
+                )
+                initial_text = json.dumps(
+                    raw_data,
+                    indent=4,
+                    ensure_ascii=False
+                )
+                continue
+
+            # La ruta pertenece al archivo real y no puede modificarse desde el JSON.
+            credential_data["character_json_path"] = str(credential_file.resolve())
+            self._apply_credential_data_to_form(credential_data)
             return
-
-        raw_data = editor.json_data
-        if not isinstance(raw_data, dict) or not isinstance(raw_data.get("character_data"), dict):
-            QMessageBox.warning(
-                self,
-                "JSON inválido para credenciales",
-                "La raíz debe ser un objeto que contenga un objeto 'character_data'."
-            )
-            return
-
-        credential_data = raw_data["character_data"]
-        for deprecated_field in ("position", "birthday", "age"):
-            credential_data.pop(deprecated_field, None)
-        credential_data.setdefault("secondary_color", "")
-        # La ruta real del archivo no se modifica desde el editor crudo.
-        credential_data["character_json_path"] = str(credential_file.resolve())
-
-        try:
-            with credential_file.open("w", encoding="utf-8") as json_file:
-                json.dump(raw_data, json_file, indent=4, ensure_ascii=False)
-                json_file.write("\n")
-        except OSError as exc:
-            QMessageBox.critical(
-                self, "Error", f"No se pudo guardar la credencial:\n{exc}"
-            )
-            return
-
-        # Mantener los metadatos de la carpeta únicamente en el objeto de caché.
-        self.char_data = credential_data.copy()
-        for metadata_key in ("position", "birthday", "age"):
-            if metadata_key in self.original_char_data:
-                self.char_data[metadata_key] = self.original_char_data[metadata_key]
-
-        self.saved = True
-        self.accept()
 
     def _resolve_asset_path(self, raw_path):
         asset_path = Path(raw_path).expanduser()
@@ -640,7 +742,7 @@ class CharacterEditDialog(QDialog):
                 "time_of_year": self.cb_time_of_year.currentText()
             }
 
-            # Conservar datos de posición solo en memoria para orden y representación.
+            # Conservar datos estructurales solo en memoria para orden y representación.
             runtime_data = credential_data.copy()
             for metadata_key in ("position", "birthday", "age"):
                 if metadata_key in self.original_char_data:
