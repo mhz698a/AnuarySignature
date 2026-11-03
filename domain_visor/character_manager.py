@@ -124,6 +124,15 @@ class CharacterManager:
             self.save_cache_file()
 
     @staticmethod
+    def _credential_payload(char_data: dict) -> dict:
+        """Construye el JSON persistido sin los metadatos incluidos en la carpeta."""
+        credential_data = char_data.copy()
+        for deprecated_field in ("position", "birthday", "age"):
+            credential_data.pop(deprecated_field, None)
+        credential_data.setdefault("secondary_color", "")
+        return {"character_data": credential_data}
+
+    @staticmethod
     def _find_first_image(character_dir: Path) -> str:
         image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
         for sub_item in sorted(character_dir.iterdir()):
@@ -236,10 +245,12 @@ class CharacterManager:
                             else:
                                 char_data["icon_path"] = self._find_first_image(item)
 
+                            char_data.setdefault("secondary_color", "")
+
                             # Guardar en target_json
                             try:
                                 with open(target_json, "w", encoding="utf-8") as jf:
-                                    json.dump({"character_data": char_data}, jf, indent=4, ensure_ascii=False)
+                                    json.dump(self._credential_payload(char_data), jf, indent=4, ensure_ascii=False)
                             except Exception as e:
                                 print(f"Error guardando JSON sincronizado en personaje: {e}")
 
@@ -267,6 +278,7 @@ class CharacterManager:
                                 "short_masked_alterego": "",
                                 "character_json_path": str(target_json.resolve()),
                                 "color_group": "",
+                                "secondary_color": "",
                                 "profession_group": "",
                                 "time_of_year": ""
                             }
@@ -274,9 +286,11 @@ class CharacterManager:
                             # Guardar el JSON en la carpeta
                             try:
                                 with open(target_json, "w", encoding="utf-8") as jf:
-                                    json.dump({"character_data": char_data}, jf, indent=4, ensure_ascii=False)
+                                    json.dump(self._credential_payload(char_data), jf, indent=4, ensure_ascii=False)
                             except Exception as e:
                                 print(f"Error guardando JSON en personaje: {e}")
+
+                        char_data.setdefault("secondary_color", "")
 
                         # Agregar a la lista para guardar en caché
                         characters_list.append(char_data)

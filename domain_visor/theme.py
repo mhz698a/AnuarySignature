@@ -7,6 +7,7 @@ class Theme:
     """
     # Colores generales de la aplicación
     APP_BACKGROUND = "#1e1e1e"
+    DOMAIN_VIEW_BACKGROUND = "#141414"
     TEXT_WHITE = "#ffffff"
 
     # SuperDomainItem

@@ -1,10 +1,13 @@
 # domain_visor/scene_view.py
 
 import json
+import subprocess
+import sys
 import traceback
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QGraphicsView, QGraphicsScene, QSplitter, QPushButton,
-    QMenuBar, QMenu, QSlider, QMessageBox
+    QMenuBar, QMenu, QSlider, QMessageBox, QFileDialog
 )
 from PyQt6.QtCore import Qt, QSettings, QByteArray
 from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
@@ -198,7 +201,7 @@ class VasculumApp(QMainWindow):
         self.view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.view.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.view.setBackgroundBrush(QBrush(QColor(Theme.APP_BACKGROUND)))
+        self.view.setBackgroundBrush(QBrush(QColor(Theme.DOMAIN_VIEW_BACKGROUND)))
         
         # Soportar arrastre directo estilo mano además de las barras de desplazamiento (Paso 2)
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -206,6 +209,7 @@ class VasculumApp(QMainWindow):
 
         # 4. Crear la escena y asignarla al View
         self.scene = QGraphicsScene()
+        self.scene.setBackgroundBrush(QBrush(QColor(Theme.DOMAIN_VIEW_BACKGROUND)))
         self.view.setScene(self.scene)
 
         # 5. Instanciar RenderEngine para delegar el renderizado
@@ -275,6 +279,14 @@ class VasculumApp(QMainWindow):
         self.regen_cache_action = file_menu.addAction("Regenerar caché y recargar renderizado")
         self.regen_cache_action.triggered.connect(self.confirm_and_regenerate_cache)
 
+        settings_menu = self.menu_bar.addMenu("Ajustes")
+        self.galleryanuary_access_action = settings_menu.addAction(
+            "Definir Acceso a GalleryAnuary"
+        )
+        self.galleryanuary_access_action.triggered.connect(
+            self.define_galleryanuary_access
+        )
+
         help_menu = self.menu_bar.addMenu("Ayuda")
         self.about_action = help_menu.addAction("Acerca de...")
         self.about_action.triggered.connect(self.show_about_dialog)
@@ -284,6 +296,103 @@ class VasculumApp(QMainWindow):
         # Una vez que termine la indexación, realizamos el re-renderizado inicial de forma segura
         self.progress_dialog.finished.connect(self.trigger_render)
         self.progress_dialog.start_loading()
+
+    def define_galleryanuary_access(self):
+        """Selecciona y persiste el ejecutable o script de GalleryAnuary."""
+        configured_path = str(
+            self.settings.value("galleryanuary_executable", "") or ""
+        )
+        start_directory = (
+            str(Path(configured_path).parent)
+            if configured_path and Path(configured_path).is_file()
+            else str(Path.home())
+        )
+        selected_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Definir acceso a GalleryAnuary",
+            start_directory,
+            "GalleryAnuary (GalleryAnuary.exe app.py app.pyw);;"
+            "Aplicaciones (*.exe);;Scripts Python (*.py *.pyw);;Todos los archivos (*)"
+        )
+        if not selected_path:
+            return
+
+        selected_file = Path(selected_path).expanduser().resolve()
+        if not selected_file.is_file():
+            QMessageBox.warning(
+                self,
+                "GalleryAnuary",
+                f"El archivo seleccionado no existe:\\n{selected_file}"
+            )
+            return
+
+        if selected_file.suffix.lower() not in {".exe", ".py", ".pyw"}:
+            QMessageBox.warning(
+                self,
+                "GalleryAnuary",
+                "Selecciona el ejecutable de GalleryAnuary o su archivo app.py/app.pyw."
+            )
+            return
+
+        self.settings.setValue("galleryanuary_executable", str(selected_file))
+        QMessageBox.information(
+            self,
+            "GalleryAnuary",
+            f"Acceso guardado:\\n{selected_file}"
+        )
+
+    def open_credential_with_galleryanuary(self, credential_directory):
+        """Inicia GalleryAnuary y le pasa la carpeta que contiene la credencial."""
+        configured_path = str(
+            self.settings.value("galleryanuary_executable", "") or ""
+        ).strip()
+        if not configured_path:
+            QMessageBox.warning(
+                self,
+                "GalleryAnuary",
+                "Primero define el acceso desde Ajustes > Definir Acceso a GalleryAnuary."
+            )
+            return
+
+        gallery_path = Path(configured_path).expanduser()
+        if not gallery_path.is_file():
+            QMessageBox.warning(
+                self,
+                "GalleryAnuary",
+                f"El ejecutable configurado no existe:\\n{gallery_path}\\n"
+                "Vuelve a definir el acceso desde el menú Ajustes."
+            )
+            return
+
+        credential_path = Path(credential_directory).expanduser()
+        if not credential_path.is_dir():
+            QMessageBox.warning(
+                self,
+                "GalleryAnuary",
+                f"No se encontró la carpeta de la credencial:\\n{credential_path}"
+            )
+            return
+
+        if gallery_path.suffix.lower() in {".py", ".pyw"}:
+            python_executable = sys.executable
+            if sys.platform == "win32" and Path(sys.executable).with_name("pythonw.exe").is_file():
+                python_executable = str(Path(sys.executable).with_name("pythonw.exe"))
+            command = [python_executable, str(gallery_path.resolve()), str(credential_path.resolve())]
+        else:
+            command = [str(gallery_path.resolve()), str(credential_path.resolve())]
+
+        try:
+            subprocess.Popen(
+                command,
+                cwd=str(gallery_path.resolve().parent),
+                close_fds=True
+            )
+        except OSError as error:
+            QMessageBox.critical(
+                self,
+                "GalleryAnuary",
+                f"No se pudo iniciar GalleryAnuary:\\n{error}"
+            )
 
     def confirm_and_regenerate_cache(self):
         msg_box = QMessageBox(self)

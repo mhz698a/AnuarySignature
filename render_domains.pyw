@@ -62,7 +62,7 @@ if __name__ == "__main__":
                 
                 rect = window.scene.sceneRect()
                 image = QImage(int(rect.width()), int(rect.height()), QImage.Format.Format_ARGB32)
-                image.fill(QColor(Theme.APP_BACKGROUND))
+                image.fill(QColor(Theme.DOMAIN_VIEW_BACKGROUND))
                 
                 painter = QPainter(image)
                 window.scene.render(painter)
