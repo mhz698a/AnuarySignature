@@ -178,6 +178,7 @@ class VasculumApp(QMainWindow):
     """
 
     galleryanuary_requested = pyqtSignal(str)
+
     def __init__(self, json_path, json_title):
         super().__init__()
         self.json_path = json_path

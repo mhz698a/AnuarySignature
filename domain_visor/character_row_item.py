@@ -149,7 +149,7 @@ class CharacterIconItem(QGraphicsItem):
 
         profile_dir = Path(json_path_str).parent
         if not profile_dir.is_dir():
-            QMessageBox.warning(None, "GalleryAnuary", f"No se encontró la carpeta:\\n{profile_dir}")
+            QMessageBox.warning(None, "GalleryAnuary", f"No se encontró la carpeta:\n{profile_dir}")
             return
 
         scene = self.scene()

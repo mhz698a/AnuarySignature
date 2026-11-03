@@ -265,6 +265,7 @@ class YearDialog(QDialog):
     """
 
     galleryanuary_requested = pyqtSignal(str)
+
     def __init__(self, year_value: int, parent=None, base_path=None):
         super().__init__(parent)
         self.year_value = year_value
