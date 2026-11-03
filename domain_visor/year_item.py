@@ -193,6 +193,12 @@ class YearItem(QGraphicsItem):
             else:
                 from domain_visor.year_dialog import YearDialog
                 dialog = YearDialog(self._year_value, parent_window)
+                if parent_window is not None:
+                    from domain_visor.scene_view import VasculumApp
+                    if isinstance(parent_window, VasculumApp):
+                        dialog.galleryanuary_requested.connect(
+                            parent_window.galleryanuary_requested
+                        )
                 dialog.exec()
                 if dialog.saved:
                     self.update()

@@ -130,9 +130,45 @@ class CharacterIconItem(QGraphicsItem):
         view_credential_act.triggered.connect(self.view_profile_credential)
         menu.addAction(view_credential_act)
 
+        galleryanuary_act = QAction("Abrir carpeta con GalleryAnuary", menu)
+        galleryanuary_act.triggered.connect(
+            self.open_profile_folder_with_galleryanuary
+        )
+        menu.addAction(galleryanuary_act)
+
         if event:
             menu.exec(event.screenPos())
             event.accept()
+
+    def open_profile_folder_with_galleryanuary(self):
+        """Envía la carpeta del perfil a GalleryAnuary a través de la señal principal."""
+        json_path_str = self.character_json_path
+        if not json_path_str:
+            QMessageBox.warning(None, "GalleryAnuary", "El perfil no tiene una ruta de credencial.")
+            return
+
+        profile_dir = Path(json_path_str).parent
+        if not profile_dir.is_dir():
+            QMessageBox.warning(None, "GalleryAnuary", f"No se encontró la carpeta:\\n{profile_dir}")
+            return
+
+        scene = self.scene()
+        views = scene.views() if scene else []
+        if not views:
+            QMessageBox.warning(None, "GalleryAnuary", "No hay una ventana asociada al visor.")
+            return
+
+        from domain_visor.scene_view import VasculumApp
+        main_window = views[0].window()
+        if not isinstance(main_window, VasculumApp):
+            QMessageBox.warning(
+                views[0],
+                "GalleryAnuary",
+                "La ventana del visor no expone la señal de integración con GalleryAnuary."
+            )
+            return
+
+        main_window.galleryanuary_requested.emit(str(profile_dir.resolve()))
 
     def open_profile_folder(self):
         json_path_str = self.character_json_path
@@ -184,6 +220,14 @@ class CharacterIconItem(QGraphicsItem):
         old_img_path = resolve_character_icon_path(self.char_data)
 
         dialog = CharacterEditDialog(self.char_data, parent=view)
+        if view is not None:
+            from domain_visor.scene_view import VasculumApp
+            main_window = view.window()
+            if isinstance(main_window, VasculumApp):
+                dialog.galleryanuary_requested.connect(
+                    main_window.galleryanuary_requested
+                )
+
         if dialog.exec() == CharacterEditDialog.DialogCode.Accepted and dialog.saved:
             new_data = dialog.char_data
 

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QMessageBox, QListWidget, QListWidgetItem, QWidget,
     QTreeView, QAbstractItemView, QMenu
 )
-from PyQt6.QtCore import Qt, QDir, QModelIndex, QUrl, QPoint
+from PyQt6.QtCore import Qt, QDir, QModelIndex, QUrl, QPoint, pyqtSignal
 from PyQt6.QtGui import QFileSystemModel, QDesktopServices, QAction
 from domain_visor.theme import Theme
 from domain_visor.character_manager import CharacterManager
@@ -260,6 +260,8 @@ class FolderRenameDialog(QDialog):
 
 
 class YearDialog(QDialog):
+    galleryanuary_requested = pyqtSignal(str)
+
     """
     Diálogo de Año ("Year Dialog") para visualizar y editar la estructura de identidad del año.
     """
@@ -804,8 +806,15 @@ class YearDialog(QDialog):
         if not index.isValid() or not self.year_folder_model.isDir(index):
             return
 
-        folder_path = self.year_folder_model.filePath(index)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
+        folder_path = Path(self.year_folder_model.filePath(index)).resolve()
+        parent_folder_name = folder_path.parent.name.casefold()
+
+        # Una subcarpeta cuyo padre pertenece al álbum se abre en GalleryAnuary.
+        if "album" in parent_folder_name:
+            self.galleryanuary_requested.emit(str(folder_path))
+            return
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder_path)))
 
     def add_package_item(self):
         text = self.txt_new_package.text().strip()

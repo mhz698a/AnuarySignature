@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QGraphicsView, QGraphicsScene, QSplitter, QPushButton,
     QMenuBar, QMenu, QSlider, QMessageBox, QFileDialog
 )
-from PyQt6.QtCore import Qt, QSettings, QByteArray
+from PyQt6.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
 
 from domain_visor.theme import Theme
@@ -118,22 +118,33 @@ class ZoomableGraphicsView(QGraphicsView):
             self.zoom_slider.blockSignals(False)
 
     def wheelEvent(self, event):
+        # La rueda normal desplaza verticalmente la escena. Ctrl + rueda se
+        # reserva exclusivamente al zoom y nunca se propaga al scroll del visor.
+        modifiers = event.modifiers()
+        if not (modifiers & Qt.KeyboardModifier.ControlModifier):
+            super().wheelEvent(event)
+            return
+
         angle_delta = event.angleDelta().y()
+        if angle_delta == 0:
+            event.accept()
+            return
+
         zoom_step = 1.15
+        new_zoom = (
+            self.zoom_factor * zoom_step
+            if angle_delta > 0
+            else self.zoom_factor / zoom_step
+        )
+        new_zoom = max(self.min_zoom, min(self.max_zoom, new_zoom))
 
-        if angle_delta > 0:
-            new_zoom = self.zoom_factor * zoom_step
-        else:
-            new_zoom = self.zoom_factor / zoom_step
-
-        if self.min_zoom <= new_zoom <= self.max_zoom:
+        if new_zoom != self.zoom_factor:
             relative_factor = new_zoom / self.zoom_factor
             self.scale(relative_factor, relative_factor)
             self.zoom_factor = new_zoom
             self._sync_slider()
-            event.accept()
-        else:
-            super().wheelEvent(event)
+
+        event.accept()
 
     def zoom_in(self):
         new_zoom = self.zoom_factor * 1.15
@@ -160,6 +171,8 @@ class ZoomableGraphicsView(QGraphicsView):
 
 
 class VasculumApp(QMainWindow):
+    galleryanuary_requested = pyqtSignal(str)
+
     """
     Ventana principal del visor de infraestructura.
     Responsable únicamente de configurar la ventana principal, la vista y la escena de QGraphics.
@@ -174,6 +187,9 @@ class VasculumApp(QMainWindow):
         self.setStyleSheet(f"background-color: {Theme.APP_BACKGROUND}; color: {Theme.TEXT_WHITE};")
         
         self.settings = QSettings("etudetools", "year_struct_vasculum")
+        self.galleryanuary_requested.connect(
+            self.open_credential_with_galleryanuary
+        )
         self.init_ui()
 
     def init_ui(self):

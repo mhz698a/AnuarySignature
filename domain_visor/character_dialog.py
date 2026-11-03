@@ -9,12 +9,14 @@ from PyQt6.QtWidgets import (
     QComboBox, QPushButton, QMessageBox, QFileDialog, QScrollArea, QWidget,
     QListWidget, QListWidgetItem
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from domain_visor.theme import Theme
 from domain_visor.raw_json_editor import RawJSONEditorDialog
 from domain_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
 
 class CharacterEditDialog(QDialog):
+    galleryanuary_requested = pyqtSignal(str)
+
     """
     Diálogo modal para editar los datos de un personaje en su archivo JSON.
     """
@@ -448,18 +450,17 @@ class CharacterEditDialog(QDialog):
             )
 
     def open_credential_location_with_galleryanuary(self):
-        """Abre la carpeta de la credencial mediante GalleryAnuary configurado."""
-        main_window = self.window()
-        if hasattr(main_window, "open_credential_with_galleryanuary"):
-            main_window.open_credential_with_galleryanuary(
-                self.initial_character_json_path.parent
-            )
-        else:
+        """Solicita abrir la carpeta de la credencial mediante la señal Qt."""
+        credential_dir = self.initial_character_json_path.parent
+        if not credential_dir.is_dir():
             QMessageBox.warning(
                 self,
                 "GalleryAnuary",
-                "No se encontró la ventana principal para iniciar GalleryAnuary."
+                f"No se encontró la carpeta de la credencial:\\n{credential_dir}"
             )
+            return
+
+        self.galleryanuary_requested.emit(str(credential_dir.resolve()))
 
     def open_raw_json_editor(self):
         """Edita el archivo de credencial con el editor JSON reutilizable."""
