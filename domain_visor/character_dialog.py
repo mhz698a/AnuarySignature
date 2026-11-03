@@ -456,7 +456,7 @@ class CharacterEditDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "GalleryAnuary",
-                f"No se encontró la carpeta de la credencial:\\n{credential_dir}"
+                f"No se encontró la carpeta de la credencial:\n{credential_dir}"
             )
             return
 
