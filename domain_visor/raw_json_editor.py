@@ -3,7 +3,7 @@
 import json
 import re
 
-from PyQt6.QtCore import Qt, QRect, QSize
+from PyQt6.QtCore import Qt, QRect, QSize, QTimer
 from PyQt6.QtGui import (
     QColor,
     QFont,
@@ -153,16 +153,44 @@ class JSONSyntaxHighlighter(QSyntaxHighlighter):
             self.clear_error_position()
             return
 
-        self.error_block_number = block.blockNumber()
-        self.error_start = max(0, absolute_position - block.position())
-        self.error_length = max(1, length)
-        self.rehighlight()
+        new_block_number = block.blockNumber()
+        new_start = max(0, absolute_position - block.position())
+        new_length = max(1, length)
+
+        if (
+            self.error_block_number == new_block_number
+            and self.error_start == new_start
+            and self.error_length == new_length
+        ):
+            return
+
+        previous_block = (
+            document.findBlockByNumber(self.error_block_number)
+            if self.error_block_number is not None
+            else None
+        )
+        self.error_block_number = new_block_number
+        self.error_start = new_start
+        self.error_length = new_length
+
+        if previous_block is not None and previous_block.isValid():
+            if previous_block.blockNumber() != new_block_number:
+                self.rehighlightBlock(previous_block)
+        self.rehighlightBlock(block)
 
     def clear_error_position(self):
+        if self.error_block_number is None:
+            return
+
+        previous_block = self.document().findBlockByNumber(
+            self.error_block_number
+        )
         self.error_block_number = None
         self.error_start = 0
         self.error_length = 1
-        self.rehighlight()
+
+        if previous_block.isValid():
+            self.rehighlightBlock(previous_block)
 
     def highlightBlock(self, text):
         string_matches = list(self._STRING_PATTERN.finditer(text))
@@ -291,20 +319,29 @@ class RawJSONEditorDialog(QDialog):
         buttons.addWidget(self.save_button)
         layout.addLayout(buttons)
 
-        self.editor.textChanged.connect(self.validate_json)
+        # Validar cuando el usuario hace una pausa, no en cada pulsación.
+        self._validation_timer = QTimer(self)
+        self._validation_timer.setSingleShot(True)
+        self._validation_timer.setInterval(250)
+        self._validation_timer.timeout.connect(self.validate_json)
+        self.editor.textChanged.connect(self._schedule_validation)
         self.validate_json()
 
+    def _schedule_validation(self):
+        self._validation_timer.start()
+
     def validate_json(self):
-        """Validate current text and mark JSONDecodeError inside QSyntaxHighlighter."""
+        """Validate current text and update only the affected syntax-highlight block."""
+        text = self.editor.toPlainText()
         try:
-            json.loads(self.editor.toPlainText())
+            parsed_data = json.loads(text)
         except json.JSONDecodeError as error:
+            self.json_data = None
             self.save_button.setEnabled(False)
             self.error_label.setStyleSheet("color: #F48771; padding: 2px 4px;")
             self.error_label.setText(
                 f"JSONDecodeError: {error.msg} (línea {error.lineno}, columna {error.colno})"
             )
-            text = self.editor.toPlainText()
             position = min(error.pos, max(0, len(text) - 1))
             self.highlighter.set_error_position(
                 self.editor.document(),
@@ -313,6 +350,7 @@ class RawJSONEditorDialog(QDialog):
             )
             return False
 
+        self.json_data = parsed_data
         self.error_label.setText("JSON válido")
         self.error_label.setStyleSheet("color: #89D185; padding: 2px 4px;")
         self.highlighter.clear_error_position()
@@ -320,11 +358,11 @@ class RawJSONEditorDialog(QDialog):
         return True
 
     def _accept_json(self):
+        self._validation_timer.stop()
         if not self.validate_json():
             self.editor.setFocus()
             return
 
-        self.json_data = json.loads(self.editor.toPlainText())
         self.accept()
 
     def get_json_data(self):
