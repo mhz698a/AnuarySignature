@@ -196,7 +196,9 @@ class JSONSyntaxHighlighter(QSyntaxHighlighter):
             start = min(self.error_start, max(0, len(text) - 1))
             end = min(len(text), start + self.error_length)
             if end > start:
-                error_format = QTextCharFormat(self.format(start))
+                error_format = QTextCharFormat()
+                error_format.setForeground(QColor("#FF7B72"))
+                error_format.setBackground(QColor("#3B1717"))
                 error_format.setUnderlineStyle(
                     QTextCharFormat.UnderlineStyle.WaveUnderline
                 )

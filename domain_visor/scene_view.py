@@ -171,13 +171,13 @@ class ZoomableGraphicsView(QGraphicsView):
 
 
 class VasculumApp(QMainWindow):
-    galleryanuary_requested = pyqtSignal(str)
-
     """
     Ventana principal del visor de infraestructura.
     Responsable únicamente de configurar la ventana principal, la vista y la escena de QGraphics.
     Delega todo el renderizado y la lógica de creación de gráficos al RenderEngine.
     """
+
+    galleryanuary_requested = pyqtSignal(str)
     def __init__(self, json_path, json_title):
         super().__init__()
         self.json_path = json_path
