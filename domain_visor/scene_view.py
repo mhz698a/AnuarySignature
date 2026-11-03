@@ -6,7 +6,7 @@ import sys
 import traceback
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QMainWindow, QGraphicsView, QGraphicsScene, QSplitter, QPushButton,
+    QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QSplitter, QPushButton,
     QMenuBar, QMenu, QSlider, QMessageBox, QFileDialog, QLabel
 )
 from PyQt6.QtCore import Qt, QSettings, QByteArray, pyqtSignal

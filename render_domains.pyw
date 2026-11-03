@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QIcon
 
 from domain_visor.scene_view import VasculumApp
+from domain_visor.system_tray import SystemTrayController
 
 APP_DIR = Path(__file__).resolve().parent.as_posix()
 ICON_WIN = f"{APP_DIR}/assets/online.ico"
@@ -38,6 +39,7 @@ def show_unexpected_error(exc_type, exc_value, exc_traceback):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     sys.excepthook = show_unexpected_error
     
     # Soporte para exportación headless PNG de prueba (Commit 12.1)
@@ -82,6 +84,13 @@ if __name__ == "__main__":
         pass
 
     window = VasculumApp(JSON_DOMAINS, CONTAINER_DOMAINS)
-    # Requisito: la ventana debe mostrarse maximizada al aparecer
+
+    # El icono y su menú son un controlador independiente de la ventana principal.
+    tray_controller = SystemTrayController(ICON_WIN, parent=app)
+    tray_controller.show_window_requested.connect(window.show_domain_viewer)
+    tray_controller.exit_requested.connect(window.exit_from_tray)
+    window.attach_tray_controller(tray_controller)
+
+    # Requisito: la ventana debe mostrarse maximizada al aparecer.
     window.showMaximized()
     sys.exit(app.exec())
