@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="1315" height="1373"
+ viewBox="8 -62 1315 1373" preserveAspectRatio="xMidYMid meet"
+ xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.2" baseProfile="tiny">
+<title>Qt SVG Document</title>
+<desc>Icono msc.server-environment purificado</desc>
+<defs>
+</defs>
+<g fill="none" stroke="black" stroke-width="1" fill-rule="evenodd" stroke-linecap="square" stroke-linejoin="bevel" >
+
+<g fill="#ffffff" fill-opacity="1" stroke="#000000" stroke-opacity="0" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(1,0,0,-1,0,1248.58)"
+font-family="Segoe UI" font-size="9" font-weight="400" font-style="normal" 
+>
+<path vector-effect="none" fill-rule="nonzero" d="M502.097,1084.17 L835.347,1084.17 L835.347,999.75 L502.097,999.75 L502.097,1084.17 Z M502.097,582.077 L835.347,582.077 L835.347,502.097 L502.097,502.097 L502.097,582.077 Z M502.097,417.673 L835.347,417.673 L835.347,333.25 L502.097,333.25 L502.097,417.673 Z M1261.91,0 L71.0933,0 L177.733,417.673 L333.25,417.673 L333.25,1168.6 C333.25,1177.48 335.472,1187.11 339.915,1197.48 C344.358,1207.85 350.283,1216.73 357.688,1224.14 C365.094,1231.54 373.981,1237.47 384.348,1241.91 C394.716,1246.35 405.824,1248.58 417.673,1248.58 L915.327,1248.58 C927.175,1248.58 938.284,1246.35 948.652,1241.91 C959.019,1237.47 967.906,1231.54 975.312,1224.14 C982.717,1216.73 988.642,1207.85 993.085,1197.48 C997.528,1187.11 999.75,1176 999.75,1164.15 L999.75,417.673 L1155.27,417.673 L1261.91,0 Z M417.673,248.827 L915.327,248.827 L915.327,1168.6 L417.673,1168.6 L417.673,248.827 Z M1155.27,84.4233 L1093.06,333.25 L999.75,333.25 L999.75,168.847 L333.25,168.847 L333.25,333.25 L239.94,333.25 L177.733,84.4233 L1155.27,84.4233 Z "/>
+</g>
+</g>
+</svg>
