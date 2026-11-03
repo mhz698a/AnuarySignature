@@ -34,6 +34,7 @@ class CharacterEditDialog(QDialog):
         "profession_group",
         "time_of_year",
     })
+
     def __init__(self, char_data, parent=None):
         super().__init__(parent)
         self.char_data = char_data.copy()  # Trabajar con una copia
@@ -601,6 +602,15 @@ class CharacterEditDialog(QDialog):
                 not isinstance(item, str) for item in underwear
             ):
                 invalid_fields.append("type_underwear")
+
+            if credential_data["color_group"] not in self.color_options:
+                invalid_fields.append("color_group")
+            if credential_data["secondary_color"] not in self.color_options:
+                invalid_fields.append("secondary_color")
+            if credential_data["time_of_year"] not in (
+                "", "invierno", "primavera", "verano", "otoño"
+            ):
+                invalid_fields.append("time_of_year")
 
             if invalid_fields:
                 QMessageBox.warning(
