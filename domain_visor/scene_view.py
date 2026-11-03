@@ -763,8 +763,10 @@ class VasculumApp(QMainWindow):
         # Detener diálogo de progreso previo si existía
         if hasattr(self, 'progress_dialog') and self.progress_dialog:
             try:
-                self.progress_dialog.thread.quit()
-                self.progress_dialog.thread.wait()
+                self.progress_dialog.cancel_loading()
+                if self.progress_dialog.thread.isRunning():
+                    self.progress_dialog.thread.wait()
+                self.progress_dialog.close()
             except Exception:
                 pass
 
@@ -833,8 +835,8 @@ class VasculumApp(QMainWindow):
 
         if hasattr(self, "progress_dialog") and self.progress_dialog:
             try:
+                self.progress_dialog.cancel_loading()
                 if self.progress_dialog.thread.isRunning():
-                    self.progress_dialog.thread.quit()
                     self.progress_dialog.thread.wait()
                 self.progress_dialog.close()
             except Exception:

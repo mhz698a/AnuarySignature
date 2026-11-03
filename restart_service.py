@@ -16,16 +16,11 @@ def wait_for_process_exit(process_id):
         open_process = kernel32.OpenProcess
         open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
         open_process.restype = wintypes.HANDLE
-        wait_for_single_object = kernel32.WaitForSingleObject
-        wait_for_single_object.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        wait_for_single_object.restype = wintypes.DWORD
-        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-        kernel32.CloseHandle.restype = wintypes.BOOL
 
         process_handle = open_process(0x00100000, False, int(process_id))
         if process_handle:
             try:
-                wait_for_single_object(process_handle, 0xFFFFFFFF)
+                kernel32.WaitForSingleObject(process_handle, 0xFFFFFFFF)
             finally:
                 kernel32.CloseHandle(process_handle)
             return

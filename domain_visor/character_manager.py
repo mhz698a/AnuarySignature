@@ -145,7 +145,7 @@ class CharacterManager:
         self.migrate_cached_characters()
         self.scan_all_years()
 
-    def scan_all_years(self, progress_callback=None):
+    def scan_all_years(self, progress_callback=None, cancel_check=None):
         """
         Escanea las carpetas de años desde el primer año hasta el año actual.
         Filtra años futuros. Actualiza la caché con los personajes encontrados.
@@ -166,6 +166,8 @@ class CharacterManager:
 
         total_years = max(1, current_year - first_year + 1)
         for year_index, year in enumerate(range(first_year, current_year + 1), start=1):
+            if cancel_check and cancel_check():
+                return
             album_prefix = f"{max(0, year - 2003):02d}"
             year_dir = self.base_path / str(year) / f"{album_prefix}. album"
 
@@ -178,6 +180,8 @@ class CharacterManager:
             try:
                 # Listar subcarpetas dentro de year_dir
                 for item in year_dir.iterdir():
+                    if cancel_check and cancel_check():
+                        return
                     if item.is_dir():
                         folder_name = item.name
                         # Debe cumplir con tener el prefijo y contener exactamente 4 ';'
@@ -253,6 +257,8 @@ class CharacterManager:
                             char_data.setdefault("secondary_color", "")
 
                             # Guardar en el mismo archivo de credencial detectado.
+                            if cancel_check and cancel_check():
+                                return
                             try:
                                 with open(credential_json_file, "w", encoding="utf-8") as jf:
                                     json.dump(self._credential_payload(char_data), jf, indent=4, ensure_ascii=False)
@@ -282,6 +288,8 @@ class CharacterManager:
                             }
 
                             # Guardar el JSON en la carpeta
+                            if cancel_check and cancel_check():
+                                return
                             try:
                                 with open(target_json, "w", encoding="utf-8") as jf:
                                     json.dump(self._credential_payload(char_data), jf, indent=4, ensure_ascii=False)
@@ -303,6 +311,10 @@ class CharacterManager:
 
             if progress_callback:
                 progress_callback(year_index, total_years, year)
+
+        # No reemplazar la caché si el cierre solicitó cancelar el escaneo.
+        if cancel_check and cancel_check():
+            return
 
         # Actualizar la caché en memoria y guardarla en el archivo
         self._cache.update(updated_cache)

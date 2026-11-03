@@ -63,8 +63,8 @@ def main():
             QMessageBox.warning(
                 None,
                 "Unidad dependiente no detectada",
-                "No se encontró la carpeta contenedora dependiente:\n"
-                f"{dependent_path}\n\n"
+                "No se encontró la carpeta contenedora dependiente:\\n"
+                f"{dependent_path}\\n\\n"
                 "El programa se cerrará. Comprueba la unidad o configura una "
                 "carpeta disponible en Ajustes.",
             )

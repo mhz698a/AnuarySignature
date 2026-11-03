@@ -29,12 +29,6 @@ class SingleInstanceMutex:
             ]
             create_mutex.restype = wintypes.HANDLE
 
-            self._kernel32.ReleaseMutex.argtypes = [wintypes.HANDLE]
-            self._kernel32.ReleaseMutex.restype = wintypes.BOOL
-            self._kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-            self._kernel32.CloseHandle.restype = wintypes.BOOL
-
-            ctypes.set_last_error(0)
             handle = create_mutex(None, True, WINDOWS_MUTEX_NAME)
             if not handle:
                 raise ctypes.WinError(ctypes.get_last_error())
