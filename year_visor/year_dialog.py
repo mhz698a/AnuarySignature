@@ -3,63 +3,19 @@
 import os
 import json
 import traceback
+import datetime
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
     QPushButton, QMessageBox, QListWidget, QListWidgetItem, QWidget,
     QTreeView, QAbstractItemView, QMenu
 )
-from PyQt6.QtCore import Qt, QDir, QModelIndex, QUrl, QPoint
+from PyQt6.QtCore import Qt, QDir, QModelIndex, QUrl, QPoint, pyqtSignal
 from PyQt6.QtGui import QFileSystemModel, QDesktopServices, QAction
 from domain_visor.theme import Theme
-from domain_visor.character_manager import CharacterManager
-
-def calculate_id_package_default(year: int, infra_path: Path = None) -> str:
-    """
-    Calcula el ID de paquete por defecto basado en las reglas:
-    - Primeros dos caracteres del último nombre del superdominio en mayúsculas.
-    - "-"
-    - Número del dominio dentro del superdominio en dos dígitos.
-    - "-"
-    - prefix en dos dígitos: {max(0, year - 2003):02d}
-    - "-"
-    - "00A" al ser default variant key (se pone por defecto)
-    """
-    if infra_path is None:
-        infra_path = Path("__structure__/infrastructure.json")
-    if not infra_path.exists():
-        return ""
-    try:
-        with open(infra_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        return ""
-
-    for sd_data in data:
-        sd_name = sd_data.get("superdomain", "").strip()
-        for idx, domain_data in enumerate(sd_data.get("domains", [])):
-            range_text = domain_data.get("range", "")
-            try:
-                start_year, end_year = map(int, range_text.split("-"))
-            except Exception:
-                continue
-            if start_year <= year <= end_year:
-                # 1. Prefijo del superdominio: primeros dos caracteres del último nombre
-                parts = [p for p in sd_name.split("_") if p]
-                last_part = parts[-1] if parts else ""
-                sd_prefix = last_part[:2].upper()
-
-                # 2. Número del dominio dentro del superdominio (1-based index) en dos dígitos
-                domain_index = idx + 1
-                dom_index_str = f"{domain_index:02d}"
-
-                # 3. Prefix en dos dígitos
-                prefix_str = f"{max(0, year - 2003):02d}"
-
-                # 4. Combinar con default variant key "00A"
-                return f"{sd_prefix}-{dom_index_str}-{prefix_str}-00A"
-    return ""
-
+from character_visor.character_manager import CharacterManager
+from year_visor.year_creator import validate_date_constraints
+from year_visor.year_utils import calculate_id_package_default
 
 def find_season_name(year: int, base_path: Path) -> str:
     """
@@ -263,6 +219,9 @@ class YearDialog(QDialog):
     """
     Diálogo de Año ("Year Dialog") para visualizar y editar la estructura de identidad del año.
     """
+
+    galleryanuary_requested = pyqtSignal(str)
+
     def __init__(self, year_value: int, parent=None, base_path=None):
         super().__init__(parent)
         self.year_value = year_value
@@ -680,7 +639,6 @@ class YearDialog(QDialog):
                     # Carpeta normal primer nivel
                     # 1. Renombrar / Crear en todos los años desde el primer año de infraestructura hasta el actual
                     first_year = self.char_manager.get_first_infrastructure_year()
-                    import datetime
                     current_year = datetime.date.today().year
 
                     for y in range(first_year, current_year + 1):
@@ -772,7 +730,6 @@ class YearDialog(QDialog):
 
             # 2. Proceder a crear la carpeta en todos los años desde el primer año de infraestructura hasta el actual
             first_year = self.char_manager.get_first_infrastructure_year()
-            import datetime
             current_year = datetime.date.today().year
             
             for y in range(first_year, current_year + 1):
@@ -804,8 +761,15 @@ class YearDialog(QDialog):
         if not index.isValid() or not self.year_folder_model.isDir(index):
             return
 
-        folder_path = self.year_folder_model.filePath(index)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
+        folder_path = Path(self.year_folder_model.filePath(index)).resolve()
+        parent_folder_name = folder_path.parent.name.casefold()
+
+        # Una subcarpeta cuyo padre pertenece al álbum se abre en GalleryAnuary.
+        if "album" in parent_folder_name:
+            self.galleryanuary_requested.emit(str(folder_path))
+            return
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder_path)))
 
     def add_package_item(self):
         text = self.txt_new_package.text().strip()
@@ -831,10 +795,10 @@ class YearDialog(QDialog):
 
     def save_data(self):
         # Evitar guardar/crear la credencial de año en años que aún no ocurren si no existía el archivo
-        import datetime
+        
         today = datetime.date.today()
         if self.year_value > today.year and not self.json_filepath.exists():
-            from domain_visor.year_creator import validate_date_constraints
+            
             allowed, message = validate_date_constraints(self.year_value)
             if not allowed:
                 QMessageBox.warning(self, "Advertencia", f"No se pueden guardar credenciales para un año que aún no ocurre.\n{message}")

@@ -7,26 +7,45 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
     QComboBox, QPushButton, QMessageBox, QFileDialog, QScrollArea, QWidget,
-    QListWidget, QListWidgetItem, QDateEdit
+    QListWidget, QListWidgetItem
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, pyqtSignal
 from domain_visor.theme import Theme
-from domain_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
+from character_visor.raw_json_editor import RawJSONEditorDialog
+from character_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
 
 class CharacterEditDialog(QDialog):
     """
     Diálogo modal para editar los datos de un personaje en su archivo JSON.
     """
+
+    galleryanuary_requested = pyqtSignal(str)
+    FORM_CREDENTIAL_KEYS = frozenset({
+        "year",
+        "name",
+        "alterego",
+        "icon_path",
+        "background_path",
+        "type_underwear",
+        "short_masked_alterego",
+        "character_json_path",
+        "color_group",
+        "secondary_color",
+        "profession_group",
+        "time_of_year",
+    })
+
     def __init__(self, char_data, parent=None):
         super().__init__(parent)
         self.char_data = char_data.copy()  # Trabajar con una copia
         self.original_char_data = char_data
         self.saved = False
+        self._raw_data_staged = False
 
         self.setWindowTitle("Modificar Personaje")
         self.setModal(True)
-        self.setMinimumWidth(600)
-        self.resize(650, 600)
+        self.setMinimumWidth(900)
+        self.resize(1000, 650)
 
         # Quitar botón de ayuda
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -104,9 +123,9 @@ class CharacterEditDialog(QDialog):
                 self.initial_character_json_path = legacy_jsons[0] if legacy_jsons else expected_json
 
         self.initial_character_path = self.initial_character_json_path.parent
-        self.parent_dir = self.initial_character_path.parent
+        # Los nombres de carpeta contienen metadatos históricos y nunca se recalculan
+        # ni se renombran desde este diálogo.
         self.current_character_path = self.initial_character_path
-        self.album_prefix = f"{max(0, self.char_data.get('year', 2004) - 2003):02d}"
 
         self.init_ui()
 
@@ -130,44 +149,22 @@ class CharacterEditDialog(QDialog):
         self.txt_year.setReadOnly(True)
         scroll_layout.addWidget(self.txt_year, 0, 1, 1, 2)
 
-        # 2. Position
-        scroll_layout.addWidget(QLabel("Posición (Position):"), 1, 0)
-        self.txt_position = QLineEdit(str(self.char_data.get("position", "")))
-        scroll_layout.addWidget(self.txt_position, 1, 1, 1, 2)
-
-        # 3. Name
-        scroll_layout.addWidget(QLabel("Nombre (Name):"), 2, 0)
+        # 2. Name
+        scroll_layout.addWidget(QLabel("Nombre (Name):"), 1, 0)
         self.txt_name = QLineEdit(self.char_data.get("name", ""))
-        scroll_layout.addWidget(self.txt_name, 2, 1, 1, 2)
+        self.txt_name.setReadOnly(True)
+        scroll_layout.addWidget(self.txt_name, 1, 1, 1, 2)
 
-        # 4. Alterego
-        scroll_layout.addWidget(QLabel("Alterego:"), 3, 0)
+        # 3. Alterego
+        scroll_layout.addWidget(QLabel("Alterego:"), 2, 0)
         self.txt_alterego = QLineEdit(self.char_data.get("alterego", ""))
-        scroll_layout.addWidget(self.txt_alterego, 3, 1, 1, 2)
+        self.txt_alterego.setReadOnly(True)
+        scroll_layout.addWidget(self.txt_alterego, 2, 1, 1, 2)
 
-        # 5. Birthday (QDateEdit with Calendar Popup)
-        scroll_layout.addWidget(QLabel("Cumpleaños (Birthday):"), 4, 0)
-        self.txt_birthday = QDateEdit()
-        self.txt_birthday.setCalendarPopup(True)
-        self.txt_birthday.setDisplayFormat("yyyy-MM-dd")
-
-        bday_str = self.char_data.get("birthday", "")
-        bday_date = QDate.fromString(bday_str, "yyyy-MM-dd")
-        if bday_date.isValid():
-            self.txt_birthday.setDate(bday_date)
-        else:
-            self.txt_birthday.setDate(QDate.currentDate())
-        scroll_layout.addWidget(self.txt_birthday, 4, 1, 1, 2)
-
-        # 6. Age
-        scroll_layout.addWidget(QLabel("Edad (Age):"), 5, 0)
-        self.txt_age = QLineEdit(str(self.char_data.get("age", "")))
-        scroll_layout.addWidget(self.txt_age, 5, 1, 1, 2)
-
-        # 7. Icon Path (QLineEdit + Establecer + Abrir)
-        scroll_layout.addWidget(QLabel("Ruta Icono (Icon Path):"), 6, 0)
+        # 4. Icon Path (QLineEdit + Establecer + Abrir)
+        scroll_layout.addWidget(QLabel("Ruta Icono (Icon Path):"), 3, 0)
         self.txt_icon_path = QLineEdit(self.char_data.get("icon_path", ""))
-        scroll_layout.addWidget(self.txt_icon_path, 6, 1)
+        scroll_layout.addWidget(self.txt_icon_path, 3, 1)
 
         btn_icon_layout = QHBoxLayout()
         self.btn_set_icon = QPushButton("Establecer")
@@ -176,12 +173,12 @@ class CharacterEditDialog(QDialog):
         self.btn_open_icon.clicked.connect(self.open_icon_file)
         btn_icon_layout.addWidget(self.btn_set_icon)
         btn_icon_layout.addWidget(self.btn_open_icon)
-        scroll_layout.addLayout(btn_icon_layout, 6, 2)
+        scroll_layout.addLayout(btn_icon_layout, 3, 2)
 
-        # 8. Background Path (QLineEdit + Establecer + Abrir)
-        scroll_layout.addWidget(QLabel("Ruta Fondo (Background Path):"), 7, 0)
+        # 5. Background Path (QLineEdit + Establecer + Abrir)
+        scroll_layout.addWidget(QLabel("Ruta Fondo (Background Path):"), 4, 0)
         self.txt_bg_path = QLineEdit(self.char_data.get("background_path", ""))
-        scroll_layout.addWidget(self.txt_bg_path, 7, 1)
+        scroll_layout.addWidget(self.txt_bg_path, 4, 1)
 
         btn_bg_layout = QHBoxLayout()
         self.btn_set_bg = QPushButton("Establecer")
@@ -190,10 +187,10 @@ class CharacterEditDialog(QDialog):
         self.btn_open_bg.clicked.connect(self.open_bg_file)
         btn_bg_layout.addWidget(self.btn_set_bg)
         btn_bg_layout.addWidget(self.btn_open_bg)
-        scroll_layout.addLayout(btn_bg_layout, 7, 2)
+        scroll_layout.addLayout(btn_bg_layout, 4, 2)
 
-        # 9. Type Underwear (QListWidget with checkboxes & Editar lista button)
-        scroll_layout.addWidget(QLabel("Ropa Interior (Type Underwear):"), 8, 0)
+        # 6. Type Underwear (QListWidget with checkboxes & Editar lista button)
+        scroll_layout.addWidget(QLabel("Ropa Interior (Type Underwear):"), 5, 0)
 
         underwear_container = QWidget()
         underwear_layout = QVBoxLayout(underwear_container)
@@ -229,7 +226,7 @@ class CharacterEditDialog(QDialog):
         underwear_layout.addWidget(self.list_underwear)
         underwear_layout.addWidget(self.btn_edit_underwear_list, 0, Qt.AlignmentFlag.AlignLeft)
 
-        scroll_layout.addWidget(underwear_container, 8, 1, 1, 2)
+        scroll_layout.addWidget(underwear_container, 5, 1, 1, 2)
 
         # Parse current_underwear backward-compatibly
         current_underwear = self.char_data.get("type_underwear", [])
@@ -243,36 +240,41 @@ class CharacterEditDialog(QDialog):
         self.populate_underwear_list()
         self.list_underwear.itemChanged.connect(self.on_underwear_item_changed)
 
-        # 10. Short Masked Alterego
-        scroll_layout.addWidget(QLabel("Short Masked Alterego:"), 9, 0)
+        # 7. Short Masked Alterego
+        scroll_layout.addWidget(QLabel("Short Masked Alterego:"), 6, 0)
         self.txt_short_masked = QLineEdit(self.char_data.get("short_masked_alterego", ""))
-        scroll_layout.addWidget(self.txt_short_masked, 9, 1, 1, 2)
+        scroll_layout.addWidget(self.txt_short_masked, 6, 1, 1, 2)
 
-        # La ruta de la carpeta se deriva internamente de character_json_path y no se muestra.
-
-        # 12. Color Group (Combobox)
-        scroll_layout.addWidget(QLabel("Grupo Color (Color Group):"), 10, 0)
-        self.cb_color_group = QComboBox()
-        color_options = [
+        # 8. Color Group
+        self.color_options = [
             "", "rojo", "azul", "verde", "amarillo", "naranja", "morado",
             "rosa", "blanco", "negro", "gris", "marrón", "turquesa", "cian",
             "magenta", "arcoiris"
         ]
-        self.cb_color_group.addItems(color_options)
+        scroll_layout.addWidget(QLabel("Grupo Color (Color Group):"), 7, 0)
+        self.cb_color_group = QComboBox()
+        self.cb_color_group.addItems(self.color_options)
         current_color = self.char_data.get("color_group", "")
-        if current_color in color_options:
-            self.cb_color_group.setCurrentText(current_color)
-        else:
-            self.cb_color_group.setCurrentIndex(0)
-        scroll_layout.addWidget(self.cb_color_group, 10, 1, 1, 2)
+        self.cb_color_group.setCurrentText(current_color if current_color in self.color_options else "")
+        scroll_layout.addWidget(self.cb_color_group, 7, 1, 1, 2)
 
-        # 13. Profession Group
-        scroll_layout.addWidget(QLabel("Grupo Profesión (Profession):"), 11, 0)
+        # 9. Secondary Color: comparte las opciones del grupo de color principal.
+        scroll_layout.addWidget(QLabel("Color Secundario (Secondary Color):"), 8, 0)
+        self.cb_secondary_color = QComboBox()
+        self.cb_secondary_color.addItems(self.color_options)
+        current_secondary_color = self.char_data.get("secondary_color", "")
+        self.cb_secondary_color.setCurrentText(
+            current_secondary_color if current_secondary_color in self.color_options else ""
+        )
+        scroll_layout.addWidget(self.cb_secondary_color, 8, 1, 1, 2)
+
+        # 10. Profession Group
+        scroll_layout.addWidget(QLabel("Grupo Profesión (Profession):"), 9, 0)
         self.txt_profession = QLineEdit(self.char_data.get("profession_group", ""))
-        scroll_layout.addWidget(self.txt_profession, 11, 1, 1, 2)
+        scroll_layout.addWidget(self.txt_profession, 9, 1, 1, 2)
 
-        # 14. Time of Year (Combobox)
-        scroll_layout.addWidget(QLabel("Tiempo de Año (Time of Year):"), 12, 0)
+        # 11. Time of Year
+        scroll_layout.addWidget(QLabel("Tiempo de Año (Time of Year):"), 10, 0)
         self.cb_time_of_year = QComboBox()
         time_options = ["", "invierno", "primavera", "verano", "otoño"]
         self.cb_time_of_year.addItems(time_options)
@@ -281,28 +283,13 @@ class CharacterEditDialog(QDialog):
             self.cb_time_of_year.setCurrentText(current_time)
         else:
             self.cb_time_of_year.setCurrentIndex(0)
-        scroll_layout.addWidget(self.cb_time_of_year, 12, 1, 1, 2)
+        scroll_layout.addWidget(self.cb_time_of_year, 10, 1, 1, 2)
 
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
 
-        # Forzar reemplazo inicial de espacios si los hubiera antes de conectar señales
-        self._replace_spaces_real_time(self.txt_name)
-        self._replace_spaces_real_time(self.txt_alterego)
-
-        # Conectar señales en tiempo real para reemplazar espacios por guiones bajos
-        self.txt_name.textChanged.connect(lambda: self._replace_spaces_real_time(self.txt_name))
-        self.txt_alterego.textChanged.connect(lambda: self._replace_spaces_real_time(self.txt_alterego))
-
-        # Conectar señales para actualización automática de ruta
-        self.txt_position.textChanged.connect(self._update_character_path)
-        self.txt_name.textChanged.connect(self._update_character_path)
-        self.txt_alterego.textChanged.connect(self._update_character_path)
-        self.txt_birthday.dateChanged.connect(self._update_character_path)
-        self.txt_age.textChanged.connect(self._update_character_path)
-
-        # Forzar cálculo inicial de ruta si es posible
-        self._update_character_path()
+        # Los metadatos que definen la carpeta se conservan exclusivamente desde su
+        # ubicación real; editar una credencial no cambia el nombre de esa carpeta.
 
         # Footer Buttons
         footer_layout = QHBoxLayout()
@@ -311,7 +298,19 @@ class CharacterEditDialog(QDialog):
         self.btn_open_credential_location.clicked.connect(self.open_credential_location)
         footer_layout.addWidget(self.btn_open_credential_location)
 
+        self.btn_open_credential_galleryanuary = QPushButton(
+            "Abrir ubicacion de credencial con GalleryAnuary"
+        )
+        self.btn_open_credential_galleryanuary.clicked.connect(
+            self.open_credential_location_with_galleryanuary
+        )
+        footer_layout.addWidget(self.btn_open_credential_galleryanuary)
+
         footer_layout.addStretch()
+
+        self.btn_edit_raw = QPushButton("Editar en Crudo")
+        self.btn_edit_raw.clicked.connect(self.open_raw_json_editor)
+        footer_layout.addWidget(self.btn_edit_raw)
 
         self.btn_save = QPushButton("Guardar")
         self.btn_save.clicked.connect(self.save_data)
@@ -405,32 +404,6 @@ class CharacterEditDialog(QDialog):
             line_edit.setCursorPosition(cursor_pos)
             line_edit.blockSignals(False)
 
-    def _update_character_path(self):
-        # 1. Obtener valores actuales o usar fallbacks seguros si están vacíos
-        pos_raw = self.txt_position.text().strip()
-        try:
-            pos_val = int(pos_raw)
-            pos_str = f"{pos_val:02d}"
-        except ValueError:
-            pos_str = pos_raw if pos_raw else "00"
-
-        name_str = self.txt_name.text().strip()
-        alterego_str = self.txt_alterego.text().strip()
-        birthday_str = self.txt_birthday.date().toString("yyyy-MM-dd")
-
-        age_raw = self.txt_age.text().strip()
-        try:
-            age_val = int(age_raw)
-            age_str = f"{age_val:02d}"
-        except ValueError:
-            age_str = age_raw if age_raw else "00"
-
-        # Formato de carpeta: {album_prefix}. {position_padded};{alterego};{name};{birthday};{age_padded}
-        folder_name = f"{self.album_prefix}. {pos_str};{alterego_str};{name_str};{birthday_str};{age_str}"
-        new_path = self.parent_dir / folder_name
-
-        self.current_character_path = new_path.resolve()
-
     # Métodos de ayuda para los selectores y apertura de archivos
 
     def get_start_directory(self) -> str:
@@ -486,6 +459,178 @@ class CharacterEditDialog(QDialog):
                 f"No se encontró la ubicación de la credencial:\n{credential_dir}"
             )
 
+    def open_credential_location_with_galleryanuary(self):
+        """Solicita abrir la carpeta de la credencial mediante la señal Qt."""
+        credential_dir = self.initial_character_json_path.parent
+        if not credential_dir.is_dir():
+            QMessageBox.warning(
+                self,
+                "GalleryAnuary",
+                f"No se encontró la carpeta de la credencial:\n{credential_dir}"
+            )
+            return
+
+        self.galleryanuary_requested.emit(str(credential_dir.resolve()))
+
+    def _apply_credential_data_to_form(self, credential_data):
+        """Actualiza todos los controles del formulario con el JSON validado."""
+        runtime_data = credential_data.copy()
+        for metadata_key in ("position", "birthday", "age"):
+            if metadata_key in self.original_char_data:
+                runtime_data[metadata_key] = self.original_char_data[metadata_key]
+
+        runtime_data["character_json_path"] = str(
+            self.initial_character_json_path.resolve()
+        )
+        self.char_data = runtime_data
+        self._raw_data_staged = True
+
+        self.txt_year.setText(str(credential_data["year"]))
+        self.txt_name.setText(credential_data["name"])
+        self.txt_alterego.setText(credential_data["alterego"])
+        self.txt_icon_path.setText(credential_data["icon_path"])
+        self.txt_bg_path.setText(credential_data["background_path"])
+        self.txt_short_masked.setText(credential_data["short_masked_alterego"])
+        self.txt_profession.setText(credential_data["profession_group"])
+        self.cb_color_group.setCurrentText(credential_data["color_group"])
+        self.cb_secondary_color.setCurrentText(credential_data["secondary_color"])
+        self.cb_time_of_year.setCurrentText(credential_data["time_of_year"])
+
+        self.selected_underwear = list(credential_data["type_underwear"])
+        self.populate_underwear_list()
+
+    def open_raw_json_editor(self):
+        """Edita el JSON y aplica sus valores al formulario sin cerrar el diálogo."""
+        credential_file = self.initial_character_json_path
+
+        try:
+            if self._raw_data_staged:
+                staged_data = {
+                    key: value
+                    for key, value in self.char_data.items()
+                    if key not in {"position", "birthday", "age"}
+                }
+                initial_text = json.dumps(
+                    {"character_data": staged_data},
+                    indent=4,
+                    ensure_ascii=False
+                )
+            elif credential_file.is_file():
+                initial_text = credential_file.read_text(encoding="utf-8")
+            else:
+                initial_text = json.dumps(
+                    {"character_data": self.char_data},
+                    indent=4,
+                    ensure_ascii=False
+                )
+        except OSError as exc:
+            QMessageBox.critical(
+                self, "Error", f"No se pudo leer la credencial:\n{exc}"
+            )
+            return
+
+        string_fields = self.FORM_CREDENTIAL_KEYS - {"year", "type_underwear"}
+        while True:
+            editor = RawJSONEditorDialog(initial_text, parent=self)
+            if editor.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            raw_data = editor.json_data
+            if not isinstance(raw_data, dict) or not isinstance(
+                raw_data.get("character_data"), dict
+            ):
+                QMessageBox.warning(
+                    self,
+                    "JSON inválido para credenciales",
+                    "La raíz debe contener un objeto 'character_data'. "
+                    "El JSON se devolverá al editor para corregirlo."
+                )
+                initial_text = editor.editor.toPlainText()
+                continue
+
+            credential_data = raw_data["character_data"]
+            # Estos valores pertenecen al nombre de la carpeta, no a la credencial.
+            for deprecated_field in ("position", "birthday", "age", "character_path"):
+                credential_data.pop(deprecated_field, None)
+
+            missing_keys = self.FORM_CREDENTIAL_KEYS - set(credential_data)
+            unknown_keys = set(credential_data) - self.FORM_CREDENTIAL_KEYS
+            extra_root_keys = set(raw_data) - {"character_data"}
+
+            if missing_keys or unknown_keys or extra_root_keys:
+                details = []
+                if missing_keys:
+                    details.append(
+                        "Llaves faltantes: " + ", ".join(sorted(missing_keys))
+                    )
+                if unknown_keys:
+                    details.append(
+                        "Llaves que no corresponden al formulario: "
+                        + ", ".join(sorted(unknown_keys))
+                    )
+                if extra_root_keys:
+                    details.append(
+                        "Llaves adicionales en la raíz: "
+                        + ", ".join(sorted(extra_root_keys))
+                    )
+                QMessageBox.warning(
+                    self,
+                    "Credencial incompleta o incompatible",
+                    "\n".join(details)
+                    + "\n\nEl documento se devolverá al editor. "
+                    "Corrige las llaves para que coincidan con el formulario."
+                )
+                initial_text = json.dumps(
+                    raw_data,
+                    indent=4,
+                    ensure_ascii=False
+                )
+                continue
+
+            invalid_fields = []
+            for field in string_fields:
+                if not isinstance(credential_data[field], str):
+                    invalid_fields.append(field)
+
+            try:
+                credential_data["year"] = int(credential_data["year"])
+            except (TypeError, ValueError):
+                invalid_fields.append("year")
+
+            underwear = credential_data["type_underwear"]
+            if not isinstance(underwear, list) or any(
+                not isinstance(item, str) for item in underwear
+            ):
+                invalid_fields.append("type_underwear")
+
+            if credential_data["color_group"] not in self.color_options:
+                invalid_fields.append("color_group")
+            if credential_data["secondary_color"] not in self.color_options:
+                invalid_fields.append("secondary_color")
+            if credential_data["time_of_year"] not in (
+                "", "invierno", "primavera", "verano", "otoño"
+            ):
+                invalid_fields.append("time_of_year")
+
+            if invalid_fields:
+                QMessageBox.warning(
+                    self,
+                    "Tipos de datos incompatibles",
+                    "Corrige estos campos en el JSON: "
+                    + ", ".join(sorted(set(invalid_fields)))
+                )
+                initial_text = json.dumps(
+                    raw_data,
+                    indent=4,
+                    ensure_ascii=False
+                )
+                continue
+
+            # La ruta pertenece al archivo real y no puede modificarse desde el JSON.
+            credential_data["character_json_path"] = str(credential_file.resolve())
+            self._apply_credential_data_to_form(credential_data)
+            return
+
     def _resolve_asset_path(self, raw_path):
         asset_path = Path(raw_path).expanduser()
         if asset_path.is_absolute():
@@ -500,7 +645,7 @@ class CharacterEditDialog(QDialog):
         return self.initial_character_path / asset_path
 
     def _serialize_asset_path(self, raw_path):
-        """Mantiene relativa la ruta de recursos que se moverá junto al personaje."""
+        """Mantiene relativa la ruta de recursos dentro de la carpeta original."""
         raw_path = str(raw_path).strip()
         if not raw_path:
             return ""
@@ -561,26 +706,11 @@ class CharacterEditDialog(QDialog):
 
     def save_data(self):
         try:
-            # 1. Validar posición y edad que sean enteros válidos
-            try:
-                position = int(self.txt_position.text().strip())
-            except ValueError:
-                QMessageBox.warning(self, "Validación", "La posición debe ser un número entero válido.")
-                return
-
-            try:
-                age = int(self.txt_age.text().strip())
-            except ValueError:
-                QMessageBox.warning(self, "Validación", "La edad debe ser un número entero válido.")
-                return
-
-            # 2. Recolectar datos editados
             new_name = self.txt_name.text().strip()
             if not new_name:
                 QMessageBox.warning(self, "Validación", "El campo Nombre (Name) es obligatorio.")
                 return
 
-            original_name = self.original_char_data.get("name", "")
             original_json_path_str = self.original_char_data.get("character_json_path", "")
             original_json_file = (
                 Path(original_json_path_str)
@@ -589,33 +719,6 @@ class CharacterEditDialog(QDialog):
             )
             original_char_path = original_json_file.parent
 
-            # Recolectar ropa interior seleccionada
-            self._update_currently_selected_underwear()
-            selected_underwear = self.selected_underwear
-
-            # La nueva ruta de la carpeta que calculamos automáticamente
-            new_char_path = Path(self.current_character_path)
-
-            # Preparar la nueva estructura character_data (usará el new_char_path ya resuelto)
-            updated_data = {
-                "year": int(self.txt_year.text().strip()),
-                "position": position,
-                "name": new_name,
-                "alterego": self.txt_alterego.text().strip(),
-                "birthday": self.txt_birthday.date().toString("yyyy-MM-dd"),
-                "age": age,
-                "icon_path": self._serialize_asset_path(self.txt_icon_path.text()),
-                "background_path": self._serialize_asset_path(self.txt_bg_path.text()),
-                "type_underwear": selected_underwear,
-                "short_masked_alterego": self.txt_short_masked.text().strip(),
-                # Se calcula con la carpeta destino y el nombre del JSON que se guardará.
-                "character_json_path": str((new_char_path / f"__{new_name}__.json").resolve()),
-                "color_group": self.cb_color_group.currentText(),
-                "profession_group": self.txt_profession.text().strip(),
-                "time_of_year": self.cb_time_of_year.currentText()
-            }
-
-            # Validar la ubicación real del JSON detectado antes de guardar.
             if not original_char_path.is_dir() or not original_json_file.is_file():
                 QMessageBox.warning(
                     self,
@@ -624,54 +727,57 @@ class CharacterEditDialog(QDialog):
                 )
                 return
 
-            # Comprobar conflictos antes de escribir o renombrar.
-            moving_folder = original_char_path.resolve() != new_char_path.resolve()
-            if moving_folder and new_char_path.exists():
-                QMessageBox.warning(self, "Validación", f"La carpeta destino ya existe:\n{new_char_path}")
-                return
-
-            old_json_file = original_json_file
             new_json_file = original_char_path / f"__{new_name}__.json"
-            if new_json_file.exists() and new_json_file.resolve() != old_json_file.resolve():
+            if new_json_file.exists() and new_json_file.resolve() != original_json_file.resolve():
                 QMessageBox.warning(self, "Validación", f"La credencial destino ya existe:\n{new_json_file}")
                 return
 
-            # Escribir primero el JSON nuevo dentro de la carpeta actual.
-            with open(new_json_file, "w", encoding="utf-8") as jf:
-                json.dump({"character_data": updated_data}, jf, indent=4, ensure_ascii=False)
+            # Recolectar ropa interior seleccionada.
+            self._update_currently_selected_underwear()
 
-            final_character_dir = original_char_path
-            if moving_folder:
+            # Los tres metadatos de carpeta no pertenecen al JSON de credenciales.
+            # La ubicación de la carpeta original se conserva aunque cambie el nombre visible.
+            credential_data = {
+                "year": int(self.txt_year.text().strip()),
+                "name": new_name,
+                "alterego": self.txt_alterego.text().strip(),
+                "icon_path": self._serialize_asset_path(self.txt_icon_path.text()),
+                "background_path": self._serialize_asset_path(self.txt_bg_path.text()),
+                "type_underwear": self.selected_underwear,
+                "short_masked_alterego": self.txt_short_masked.text().strip(),
+                "character_json_path": str(new_json_file.resolve()),
+                "color_group": self.cb_color_group.currentText(),
+                "secondary_color": self.cb_secondary_color.currentText(),
+                "profession_group": self.txt_profession.text().strip(),
+                "time_of_year": self.cb_time_of_year.currentText()
+            }
+
+            # Conservar datos estructurales solo en memoria para orden y representación.
+            runtime_data = credential_data.copy()
+            for metadata_key in ("position", "birthday", "age"):
+                if metadata_key in self.original_char_data:
+                    runtime_data[metadata_key] = self.original_char_data[metadata_key]
+
+            with new_json_file.open("w", encoding="utf-8") as json_file:
+                json.dump({"character_data": credential_data}, json_file, indent=4, ensure_ascii=False)
+                json_file.write("\n")
+
+            # Si cambió el nombre, sustituir solamente el nombre del archivo JSON.
+            # La carpeta del personaje nunca se renombra.
+            if original_json_file.resolve() != new_json_file.resolve():
                 try:
-                    original_char_path.rename(new_char_path)
-                    final_character_dir = new_char_path
-                except Exception as ex:
-                    if new_json_file.exists() and new_json_file.resolve() != old_json_file.resolve():
-                        try:
-                            new_json_file.unlink()
-                        except OSError:
-                            pass
-                    QMessageBox.critical(
-                        self,
-                        "Error al Guardar",
-                        f"No se pudo renombrar la carpeta del personaje:\n{ex}"
-                    )
-                    return
+                    original_json_file.unlink()
+                except OSError as exc:
+                    print(f"Advertencia eliminando JSON anterior: {exc}")
 
-            # Eliminar el archivo anterior usando su ubicación después del eventual rename.
-            final_old_json = final_character_dir / old_json_file.name
-            final_new_json = final_character_dir / new_json_file.name
-            if final_old_json.exists() and final_old_json.resolve() != final_new_json.resolve():
-                try:
-                    final_old_json.unlink()
-                except OSError as ex:
-                    print(f"Advertencia eliminando JSON anterior: {ex}")
-
-            # Guardar el resultado en self.char_data para devolverlo
-            self.char_data = updated_data
+            self.char_data = runtime_data
             self.saved = True
             self.accept()
 
-        except Exception as e:
+        except Exception as exc:
             tb = traceback.format_exc()
-            QMessageBox.critical(self, "Error al Guardar", f"Ocurrió un error guardando el personaje:\n{e}\n\nDetalles:\n{tb}")
+            QMessageBox.critical(
+                self,
+                "Error al Guardar",
+                f"Ocurrió un error guardando el personaje:\n{exc}\n\nDetalles:\n{tb}"
+            )

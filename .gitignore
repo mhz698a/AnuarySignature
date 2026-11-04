@@ -6,6 +6,8 @@ __docs__/
 .vscode/
 *.bat
 *.tmp
+__structure__/
+__sandbox__/
 
 # === Entornos Virtuales ===
 # Ignora las carpetas más comunes donde se configuran los entornos locales

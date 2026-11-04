@@ -1,13 +1,13 @@
 # domain_visor/render_engine.py
 
-from domain_visor.models import load_from_json
-from domain_visor.layout_engine import LayoutEngine
+from engines.models import load_from_json
+from engines.layout_engine import LayoutEngine
 from domain_visor.color_resolver import ColorResolver
 from domain_visor.port_registry import PortRegistry
-from domain_visor.connection_engine import ConnectionEngine
+from engines.connection_engine import ConnectionEngine
 from domain_visor.superdomain_item import SuperDomainItem
 from domain_visor.domain_item import DomainItem
-from domain_visor.year_item import YearItem
+from year_visor.year_item import YearItem
 from domain_visor.container_name_item import ContainerNameItem
 
 class RenderEngine:

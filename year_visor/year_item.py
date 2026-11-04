@@ -1,13 +1,16 @@
 # domain_visor/year_item.py
+import datetime
 
 from PyQt6.QtCore import QRectF, Qt, QPointF
 from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 from PyQt6.QtWidgets import QGraphicsItem
 
+from year_visor.year_creator import trigger_year_creation, validate_date_constraints
+from year_visor.year_dialog import YearDialog, find_season_name
 from domain_visor.port_item import PortItem
 from domain_visor.theme import Theme
-from domain_visor.character_row_item import CharacterRowItem
-from domain_visor.character_manager import CharacterManager
+from character_visor.character_row_item import CharacterRowItem
+from character_visor.character_manager import CharacterManager
 
 class YearItem(QGraphicsItem):
     """
@@ -35,6 +38,7 @@ class YearItem(QGraphicsItem):
 
     def __init__(self, x, y, width, height, year_value, parent=None):
         super().__init__(parent)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self._x = float(x)
         self._y = float(y)
         self._width = float(width)
@@ -65,7 +69,12 @@ class YearItem(QGraphicsItem):
         if self._characters:
             # Ubicación: abajo de la fila de los puertos y el año del year item
             # La fila del año mide 15.0px, sumamos un pequeño espacio/padding de 4px, y luego la fila de personajes
-            self.row_item = CharacterRowItem(self._characters, self._width, parent=self)
+            self.row_item = CharacterRowItem(
+                self._characters,
+                self._width,
+                parent=self,
+                character_manager=char_manager
+            )
             self.row_item.setPos(self._x, self._y + 15.0 + 4.0)
 
     def boundingRect(self) -> QRectF:
@@ -85,7 +94,7 @@ class YearItem(QGraphicsItem):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             # Actualizar Tooltip dinámicamente
             char_mgr = self.get_character_manager()
-            from domain_visor.year_dialog import find_season_name
+            
             season_name = find_season_name(self._year_value, char_mgr.base_path)
             season_clean = season_name.replace("_", " ")
             self.setToolTip(f"{self._year_value} - {season_clean}")
@@ -104,7 +113,6 @@ class YearItem(QGraphicsItem):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             # Actualizar Tooltip dinámicamente
             char_mgr = self.get_character_manager()
-            from domain_visor.year_dialog import find_season_name
             season_name = find_season_name(self._year_value, char_mgr.base_path)
             season_clean = season_name.replace("_", " ")
             self.setToolTip(f"{self._year_value} - {season_clean}")
@@ -134,12 +142,11 @@ class YearItem(QGraphicsItem):
             char_mgr = self.get_character_manager()
             year_path = char_mgr.base_path / str(self._year_value)
             
-            import datetime
-            from domain_visor.year_creator import validate_date_constraints
+            
             
             # Decidir si aplicamos validación de fecha según si la carpeta del año existe
             # Y si el archivo de credenciales ya existe
-            from domain_visor.year_dialog import YearDialog
+            
             temp_dialog = YearDialog(self._year_value, parent_window, base_path=char_mgr.base_path)
             json_exists = temp_dialog.json_filepath.exists()
 
@@ -183,7 +190,6 @@ class YearItem(QGraphicsItem):
                 return
 
             if not year_path.exists():
-                from domain_visor.year_creator import trigger_year_creation
                 success = trigger_year_creation(self._year_value, parent_window, base_path=char_mgr.base_path)
                 if success:
                     if parent_window and hasattr(parent_window, "refresh_data"):
@@ -191,8 +197,13 @@ class YearItem(QGraphicsItem):
                     else:
                         self.update()
             else:
-                from domain_visor.year_dialog import YearDialog
                 dialog = YearDialog(self._year_value, parent_window)
+                if parent_window is not None:
+                    
+                    if getattr(parent_window, "galleryanuary_requested", None) is not None:
+                        dialog.galleryanuary_requested.connect(
+                            parent_window.galleryanuary_requested
+                        )
                 dialog.exec()
                 if dialog.saved:
                     self.update()

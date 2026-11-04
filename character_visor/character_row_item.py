@@ -2,14 +2,43 @@
 
 import os
 from pathlib import Path
-from PyQt6.QtCore import QRectF, Qt, QUrl
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPixmap, QDesktopServices, QAction
-from PyQt6.QtWidgets import QGraphicsItem, QToolTip, QMenu, QMessageBox
+from PyQt6.QtCore import QRectF, Qt, QUrl, QSize, QRect
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPixmap, QImage, QImageReader, QDesktopServices, QAction
+from PyQt6.QtWidgets import QGraphicsItem, QMenu, QMessageBox
 
+from character_visor.character_dialog import CharacterEditDialog
 from domain_visor.theme import Theme
 
-# Caché global en memoria para las imágenes pre-cargadas en el hilo secundario
+
+
+# QImage se puede decodificar y preparar en el hilo de trabajo.
+# QPixmap se crea exclusivamente en el hilo GUI.
+IMAGE_CACHE = {}
 PIXMAP_CACHE = {}
+ICON_THUMBNAIL_SIZE = 64
+
+
+def load_icon_thumbnail(image_path, size=ICON_THUMBNAIL_SIZE):
+    """Decode an image and return a small square thumbnail suitable for the UI."""
+    reader = QImageReader(str(image_path))
+    reader.setAutoTransform(True)
+    image = reader.read()
+    if image.isNull():
+        return QImage()
+
+    width = image.width()
+    height = image.height()
+    side = min(width, height)
+    source_x = (width - side) // 2 if width > height else 0
+    cropped = image.copy(QRect(source_x, 0, side, side))
+    if cropped.isNull():
+        return QImage()
+
+    return cropped.scaled(
+        QSize(size, size),
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 def resolve_character_icon_path(char_data):
@@ -38,9 +67,11 @@ class CharacterIconItem(QGraphicsItem):
     """
     Representa un cuadrado individual de perfil de personaje de 20x20px.
     """
-    def __init__(self, char_data, parent=None):
+    def __init__(self, char_data, parent=None, character_manager=None):
         super().__init__(parent)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.char_data = char_data
+        self.character_manager = character_manager
         self._size = 20.0
 
         # Cargar datos del personaje
@@ -54,7 +85,7 @@ class CharacterIconItem(QGraphicsItem):
         # Transformación nombre propio (Title Case) y sin guiones bajos
         self.update_tooltip_and_attributes(char_data)
 
-        # Cargar pixmap de forma segura usando la caché global pre-cargada
+        # Crear el QPixmap en el hilo GUI desde una miniatura QImage ya decodificada.
         self.load_pixmap()
 
         # Configurar cursor apuntador para interacción (requisito clásico)
@@ -81,11 +112,25 @@ class CharacterIconItem(QGraphicsItem):
     def load_pixmap(self):
         self.pixmap = None
         full_img_path = resolve_character_icon_path(self.char_data)
-        if full_img_path:
-            if full_img_path in PIXMAP_CACHE:
-                self.pixmap = PIXMAP_CACHE[full_img_path]
-            elif Path(full_img_path).is_file():
-                self.pixmap = QPixmap(full_img_path)
+        if not full_img_path:
+            return
+
+        cached_pixmap = PIXMAP_CACHE.get(full_img_path)
+        if cached_pixmap is not None and not cached_pixmap.isNull():
+            self.pixmap = cached_pixmap
+            return
+
+        thumbnail = IMAGE_CACHE.get(full_img_path)
+        if thumbnail is None and Path(full_img_path).is_file():
+            thumbnail = load_icon_thumbnail(full_img_path)
+            if not thumbnail.isNull():
+                IMAGE_CACHE[full_img_path] = thumbnail
+
+        if thumbnail is not None and not thumbnail.isNull():
+            # QPixmap requiere el hilo gráfico; esta función se ejecuta al construir
+            # o actualizar un QGraphicsItem desde la GUI.
+            self.pixmap = QPixmap.fromImage(thumbnail)
+            if not self.pixmap.isNull():
                 PIXMAP_CACHE[full_img_path] = self.pixmap
 
     def mousePressEvent(self, event):
@@ -130,9 +175,46 @@ class CharacterIconItem(QGraphicsItem):
         view_credential_act.triggered.connect(self.view_profile_credential)
         menu.addAction(view_credential_act)
 
+        galleryanuary_act = QAction("Abrir carpeta con GalleryAnuary", menu)
+        galleryanuary_act.triggered.connect(
+            self.open_profile_folder_with_galleryanuary
+        )
+        menu.addAction(galleryanuary_act)
+
         if event:
             menu.exec(event.screenPos())
             event.accept()
+
+    def open_profile_folder_with_galleryanuary(self):
+        """Envía la carpeta del perfil a GalleryAnuary a través de la señal principal."""
+        json_path_str = self.character_json_path
+        if not json_path_str:
+            QMessageBox.warning(None, "GalleryAnuary", "El perfil no tiene una ruta de credencial.")
+            return
+
+        profile_dir = Path(json_path_str).parent
+        if not profile_dir.is_dir():
+            QMessageBox.warning(None, "GalleryAnuary", f"No se encontró la carpeta:\n{profile_dir}")
+            return
+
+        scene = self.scene()
+        views = scene.views() if scene else []
+        if not views:
+            QMessageBox.warning(None, "GalleryAnuary", "No hay una ventana asociada al visor.")
+            return
+
+        
+        main_window = views[0].window()
+        galleryanuary_signal = getattr(main_window, "galleryanuary_requested", None)
+        if galleryanuary_signal is None:
+            QMessageBox.warning(
+                views[0],
+                "GalleryAnuary",
+                "La ventana del visor no expone la señal de integración con GalleryAnuary."
+            )
+            return
+
+        galleryanuary_signal.emit(str(profile_dir.resolve()))
 
     def open_profile_folder(self):
         json_path_str = self.character_json_path
@@ -171,7 +253,6 @@ class CharacterIconItem(QGraphicsItem):
         msg.exec()
 
     def view_profile_credential(self):
-        from domain_visor.character_dialog import CharacterEditDialog
         view = None
         scene = self.scene()
         if scene:
@@ -184,6 +265,13 @@ class CharacterIconItem(QGraphicsItem):
         old_img_path = resolve_character_icon_path(self.char_data)
 
         dialog = CharacterEditDialog(self.char_data, parent=view)
+        if view is not None:
+            
+            main_window = view.window()
+            galleryanuary_signal = getattr(main_window, "galleryanuary_requested", None)
+            if galleryanuary_signal is not None:
+                dialog.galleryanuary_requested.connect(galleryanuary_signal)
+
         if dialog.exec() == CharacterEditDialog.DialogCode.Accepted and dialog.saved:
             new_data = dialog.char_data
 
@@ -192,34 +280,34 @@ class CharacterIconItem(QGraphicsItem):
 
             if old_img_path:
                 PIXMAP_CACHE.pop(old_img_path, None)
+                IMAGE_CACHE.pop(old_img_path, None)
 
             self.update_tooltip_and_attributes(new_data)
             self.load_pixmap()
 
-            from domain_visor.year_item import YearItem
-            mgr = YearItem.get_character_manager()
-            year_str = str(new_data.get("year"))
-            if year_str in mgr._cache:
-                for idx, char in enumerate(mgr._cache[year_str]):
-                    if char.get("character_json_path") == old_character_json_path or char.get("name") == old_name:
-                        mgr._cache[year_str][idx] = new_data.copy()
-                        break
-                mgr.save_cache_file()
+            mgr = self.character_manager
+            if mgr is not None:
+                year_str = str(new_data.get("year"))
+                if year_str in mgr._cache:
+                    for idx, char in enumerate(mgr._cache[year_str]):
+                        if char.get("character_json_path") == old_character_json_path or char.get("name") == old_name:
+                            mgr._cache[year_str][idx] = new_data.copy()
+                            break
+                    mgr.save_cache_file()
 
             self.update()
 
-            main_window = None
             if view:
-                parent_widget = view.parent()
-                while parent_widget:
-                    from domain_visor.scene_view import VasculumApp
-                    if isinstance(parent_widget, VasculumApp):
-                        main_window = parent_widget
-                        break
-                    parent_widget = parent_widget.parent()
-
-            if main_window:
-                main_window.trigger_render()
+                
+                main_window = view.window()
+                if callable(getattr(main_window, "trigger_render", None)):
+                    main_window.trigger_render()
+                    show_status_message = getattr(main_window, "show_status_message", None)
+                    if callable(show_status_message):
+                        show_status_message(
+                            "Credencial actualizada correctamente.",
+                            3000
+                        )
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._size, self._size)
@@ -273,9 +361,10 @@ class CharacterRowItem(QGraphicsItem):
     """
     Contenedor de perfiles/personajes distribuidos en el centro de la fila.
     """
-    def __init__(self, characters_data, width, parent=None):
+    def __init__(self, characters_data, width, parent=None, character_manager=None):
         super().__init__(parent)
         self.characters_data = characters_data
+        self.character_manager = character_manager
         self._width = float(width)
         self._height = 20.0
         self.icons = []
@@ -288,7 +377,11 @@ class CharacterRowItem(QGraphicsItem):
             start_x = (self._width - total_icons_width) / 2.0
 
             for idx, char_data in enumerate(characters_data):
-                icon_item = CharacterIconItem(char_data, parent=self)
+                icon_item = CharacterIconItem(
+                    char_data,
+                    parent=self,
+                    character_manager=self.character_manager
+                )
                 icon_x = start_x + idx * (20.0 + 5.0)
                 icon_item.setPos(icon_x, 0)
                 self.icons.append(icon_item)
