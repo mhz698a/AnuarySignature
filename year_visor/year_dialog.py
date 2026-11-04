@@ -639,7 +639,6 @@ class YearDialog(QDialog):
                     # Carpeta normal primer nivel
                     # 1. Renombrar / Crear en todos los años desde el primer año de infraestructura hasta el actual
                     first_year = self.char_manager.get_first_infrastructure_year()
-                    import datetime
                     current_year = datetime.date.today().year
 
                     for y in range(first_year, current_year + 1):
@@ -731,7 +730,6 @@ class YearDialog(QDialog):
 
             # 2. Proceder a crear la carpeta en todos los años desde el primer año de infraestructura hasta el actual
             first_year = self.char_manager.get_first_infrastructure_year()
-            import datetime
             current_year = datetime.date.today().year
             
             for y in range(first_year, current_year + 1):

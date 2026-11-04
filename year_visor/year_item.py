@@ -5,15 +5,12 @@ from PyQt6.QtCore import QRectF, Qt, QPointF
 from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 from PyQt6.QtWidgets import QGraphicsItem
 
-from year_visor.year_creator import trigger_year_creation
-from year_visor.year_creator import validate_date_constraints
-from year_visor.year_dialog import YearDialog
+from year_visor.year_creator import trigger_year_creation, validate_date_constraints
+from year_visor.year_dialog import YearDialog, find_season_name
 from domain_visor.port_item import PortItem
 from domain_visor.theme import Theme
 from character_visor.character_row_item import CharacterRowItem
 from character_visor.character_manager import CharacterManager
-from year_visor.year_dialog import find_season_name
-from engines.scene_view import VasculumApp
 
 class YearItem(QGraphicsItem):
     """
@@ -72,7 +69,12 @@ class YearItem(QGraphicsItem):
         if self._characters:
             # Ubicación: abajo de la fila de los puertos y el año del year item
             # La fila del año mide 15.0px, sumamos un pequeño espacio/padding de 4px, y luego la fila de personajes
-            self.row_item = CharacterRowItem(self._characters, self._width, parent=self)
+            self.row_item = CharacterRowItem(
+                self._characters,
+                self._width,
+                parent=self,
+                character_manager=char_manager
+            )
             self.row_item.setPos(self._x, self._y + 15.0 + 4.0)
 
     def boundingRect(self) -> QRectF:
@@ -198,7 +200,7 @@ class YearItem(QGraphicsItem):
                 dialog = YearDialog(self._year_value, parent_window)
                 if parent_window is not None:
                     
-                    if isinstance(parent_window, VasculumApp):
+                    if getattr(parent_window, "galleryanuary_requested", None) is not None:
                         dialog.galleryanuary_requested.connect(
                             parent_window.galleryanuary_requested
                         )

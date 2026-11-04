@@ -8,8 +8,6 @@ from PyQt6.QtWidgets import QGraphicsItem, QMenu, QMessageBox
 
 from character_visor.character_dialog import CharacterEditDialog
 from domain_visor.theme import Theme
-from year_visor.year_item import YearItem
-from engines.scene_view import VasculumApp
 
 
 
@@ -69,10 +67,11 @@ class CharacterIconItem(QGraphicsItem):
     """
     Representa un cuadrado individual de perfil de personaje de 20x20px.
     """
-    def __init__(self, char_data, parent=None):
+    def __init__(self, char_data, parent=None, character_manager=None):
         super().__init__(parent)
         self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.char_data = char_data
+        self.character_manager = character_manager
         self._size = 20.0
 
         # Cargar datos del personaje
@@ -206,7 +205,8 @@ class CharacterIconItem(QGraphicsItem):
 
         
         main_window = views[0].window()
-        if not isinstance(main_window, VasculumApp):
+        galleryanuary_signal = getattr(main_window, "galleryanuary_requested", None)
+        if galleryanuary_signal is None:
             QMessageBox.warning(
                 views[0],
                 "GalleryAnuary",
@@ -214,7 +214,7 @@ class CharacterIconItem(QGraphicsItem):
             )
             return
 
-        main_window.galleryanuary_requested.emit(str(profile_dir.resolve()))
+        galleryanuary_signal.emit(str(profile_dir.resolve()))
 
     def open_profile_folder(self):
         json_path_str = self.character_json_path
@@ -268,10 +268,9 @@ class CharacterIconItem(QGraphicsItem):
         if view is not None:
             
             main_window = view.window()
-            if isinstance(main_window, VasculumApp):
-                dialog.galleryanuary_requested.connect(
-                    main_window.galleryanuary_requested
-                )
+            galleryanuary_signal = getattr(main_window, "galleryanuary_requested", None)
+            if galleryanuary_signal is not None:
+                dialog.galleryanuary_requested.connect(galleryanuary_signal)
 
         if dialog.exec() == CharacterEditDialog.DialogCode.Accepted and dialog.saved:
             new_data = dialog.char_data
@@ -286,26 +285,29 @@ class CharacterIconItem(QGraphicsItem):
             self.update_tooltip_and_attributes(new_data)
             self.load_pixmap()
 
-            mgr = YearItem.get_character_manager()
-            year_str = str(new_data.get("year"))
-            if year_str in mgr._cache:
-                for idx, char in enumerate(mgr._cache[year_str]):
-                    if char.get("character_json_path") == old_character_json_path or char.get("name") == old_name:
-                        mgr._cache[year_str][idx] = new_data.copy()
-                        break
-                mgr.save_cache_file()
+            mgr = self.character_manager
+            if mgr is not None:
+                year_str = str(new_data.get("year"))
+                if year_str in mgr._cache:
+                    for idx, char in enumerate(mgr._cache[year_str]):
+                        if char.get("character_json_path") == old_character_json_path or char.get("name") == old_name:
+                            mgr._cache[year_str][idx] = new_data.copy()
+                            break
+                    mgr.save_cache_file()
 
             self.update()
 
             if view:
                 
                 main_window = view.window()
-                if isinstance(main_window, VasculumApp):
+                if callable(getattr(main_window, "trigger_render", None)):
                     main_window.trigger_render()
-                    main_window.show_status_message(
-                        "Credencial actualizada correctamente.",
-                        3000
-                    )
+                    show_status_message = getattr(main_window, "show_status_message", None)
+                    if callable(show_status_message):
+                        show_status_message(
+                            "Credencial actualizada correctamente.",
+                            3000
+                        )
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._size, self._size)
@@ -359,9 +361,10 @@ class CharacterRowItem(QGraphicsItem):
     """
     Contenedor de perfiles/personajes distribuidos en el centro de la fila.
     """
-    def __init__(self, characters_data, width, parent=None):
+    def __init__(self, characters_data, width, parent=None, character_manager=None):
         super().__init__(parent)
         self.characters_data = characters_data
+        self.character_manager = character_manager
         self._width = float(width)
         self._height = 20.0
         self.icons = []
@@ -374,7 +377,11 @@ class CharacterRowItem(QGraphicsItem):
             start_x = (self._width - total_icons_width) / 2.0
 
             for idx, char_data in enumerate(characters_data):
-                icon_item = CharacterIconItem(char_data, parent=self)
+                icon_item = CharacterIconItem(
+                    char_data,
+                    parent=self,
+                    character_manager=self.character_manager
+                )
                 icon_x = start_x + idx * (20.0 + 5.0)
                 icon_item.setPos(icon_x, 0)
                 self.icons.append(icon_item)
