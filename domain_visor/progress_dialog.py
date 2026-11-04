@@ -2,11 +2,14 @@
 
 from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QProgressBar
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
-from PyQt6.QtGui import QPixmap
 import pathlib
 import threading
 from domain_visor.theme import Theme
-from domain_visor.character_row_item import PIXMAP_CACHE, resolve_character_icon_path
+from domain_visor.character_row_item import (
+    IMAGE_CACHE,
+    load_icon_thumbnail,
+    resolve_character_icon_path,
+)
 
 class ScanCancelled(Exception):
     """Internal signal used to stop a scan at a safe work boundary."""
@@ -81,10 +84,12 @@ class ScanWorker(QObject):
                 )
                 full_img_path = resolve_character_icon_path(char)
 
-                if full_img_path and full_img_path not in PIXMAP_CACHE:
+                if full_img_path and full_img_path not in IMAGE_CACHE:
                     try:
                         if pathlib.Path(full_img_path).is_file():
-                            PIXMAP_CACHE[full_img_path] = QPixmap(full_img_path)
+                            thumbnail = load_icon_thumbnail(full_img_path)
+                            if not thumbnail.isNull():
+                                IMAGE_CACHE[full_img_path] = thumbnail
                     except Exception as exc:
                         print(
                             f"No se pudo precargar la imagen de "

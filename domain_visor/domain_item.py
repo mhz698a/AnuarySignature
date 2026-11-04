@@ -155,6 +155,7 @@ class DomainItem(QGraphicsItem):
     """
     def __init__(self, x, y, width, height, title, background_color: str, border_color: str, domain_id: int = 0, infrastructure_path: str = None):
         super().__init__()
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self._x = float(x)
         self._y = float(y)
         self._width = float(width)

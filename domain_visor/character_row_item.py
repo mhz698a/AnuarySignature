@@ -2,14 +2,40 @@
 
 import os
 from pathlib import Path
-from PyQt6.QtCore import QRectF, Qt, QUrl
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPixmap, QDesktopServices, QAction
+from PyQt6.QtCore import QRectF, Qt, QUrl, QSize, QRect
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPixmap, QImage, QImageReader, QDesktopServices, QAction
 from PyQt6.QtWidgets import QGraphicsItem, QToolTip, QMenu, QMessageBox
 
 from domain_visor.theme import Theme
 
-# Caché global en memoria para las imágenes pre-cargadas en el hilo secundario
+# QImage se puede decodificar y preparar en el hilo de trabajo.
+# QPixmap se crea exclusivamente en el hilo GUI.
+IMAGE_CACHE = {}
 PIXMAP_CACHE = {}
+ICON_THUMBNAIL_SIZE = 64
+
+
+def load_icon_thumbnail(image_path, size=ICON_THUMBNAIL_SIZE):
+    """Decode an image and return a small square thumbnail suitable for the UI."""
+    reader = QImageReader(str(image_path))
+    reader.setAutoTransform(True)
+    image = reader.read()
+    if image.isNull():
+        return QImage()
+
+    width = image.width()
+    height = image.height()
+    side = min(width, height)
+    source_x = (width - side) // 2 if width > height else 0
+    cropped = image.copy(QRect(source_x, 0, side, side))
+    if cropped.isNull():
+        return QImage()
+
+    return cropped.scaled(
+        QSize(size, size),
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 def resolve_character_icon_path(char_data):
@@ -40,6 +66,7 @@ class CharacterIconItem(QGraphicsItem):
     """
     def __init__(self, char_data, parent=None):
         super().__init__(parent)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.char_data = char_data
         self._size = 20.0
 
@@ -54,7 +81,7 @@ class CharacterIconItem(QGraphicsItem):
         # Transformación nombre propio (Title Case) y sin guiones bajos
         self.update_tooltip_and_attributes(char_data)
 
-        # Cargar pixmap de forma segura usando la caché global pre-cargada
+        # Crear el QPixmap en el hilo GUI desde una miniatura QImage ya decodificada.
         self.load_pixmap()
 
         # Configurar cursor apuntador para interacción (requisito clásico)
@@ -81,11 +108,25 @@ class CharacterIconItem(QGraphicsItem):
     def load_pixmap(self):
         self.pixmap = None
         full_img_path = resolve_character_icon_path(self.char_data)
-        if full_img_path:
-            if full_img_path in PIXMAP_CACHE:
-                self.pixmap = PIXMAP_CACHE[full_img_path]
-            elif Path(full_img_path).is_file():
-                self.pixmap = QPixmap(full_img_path)
+        if not full_img_path:
+            return
+
+        cached_pixmap = PIXMAP_CACHE.get(full_img_path)
+        if cached_pixmap is not None and not cached_pixmap.isNull():
+            self.pixmap = cached_pixmap
+            return
+
+        thumbnail = IMAGE_CACHE.get(full_img_path)
+        if thumbnail is None and Path(full_img_path).is_file():
+            thumbnail = load_icon_thumbnail(full_img_path)
+            if not thumbnail.isNull():
+                IMAGE_CACHE[full_img_path] = thumbnail
+
+        if thumbnail is not None and not thumbnail.isNull():
+            # QPixmap requiere el hilo gráfico; esta función se ejecuta al construir
+            # o actualizar un QGraphicsItem desde la GUI.
+            self.pixmap = QPixmap.fromImage(thumbnail)
+            if not self.pixmap.isNull():
                 PIXMAP_CACHE[full_img_path] = self.pixmap
 
     def mousePressEvent(self, event):
@@ -236,6 +277,7 @@ class CharacterIconItem(QGraphicsItem):
 
             if old_img_path:
                 PIXMAP_CACHE.pop(old_img_path, None)
+                IMAGE_CACHE.pop(old_img_path, None)
 
             self.update_tooltip_and_attributes(new_data)
             self.load_pixmap()

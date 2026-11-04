@@ -35,6 +35,7 @@ class YearItem(QGraphicsItem):
 
     def __init__(self, x, y, width, height, year_value, parent=None):
         super().__init__(parent)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self._x = float(x)
         self._y = float(y)
         self._width = float(width)

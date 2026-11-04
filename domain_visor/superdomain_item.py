@@ -17,6 +17,7 @@ class SuperDomainItem(QGraphicsItem):
     """
     def __init__(self, x, y, width, height, title):
         super().__init__()
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self._x = float(x)
         self._y = float(y)
         self._width = float(width)

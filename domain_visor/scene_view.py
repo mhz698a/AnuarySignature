@@ -41,6 +41,13 @@ class ZoomableGraphicsView(QGraphicsView):
 
         # Anclar el zoom en el centro de la vista
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+        self.setViewportUpdateMode(
+            QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate
+        )
+        self.viewport().setAttribute(
+            Qt.WidgetAttribute.WA_OpaquePaintEvent, True
+        )
 
         # Crear el botón flotante
         self.toggle_button = QPushButton("◀", self)
@@ -598,12 +605,19 @@ class VasculumApp(QMainWindow):
         self.tray_controller = tray_controller
 
     def show_domain_viewer(self):
-        """Muestra y activa la ventana desde el icono de bandeja."""
+        """Restaura y activa el visor sin reconstruir la escena."""
         if not self._startup_complete or self._closing_application:
             return
-        self.showMaximized()
+
+        # No volver a maximizar una ventana ya restaurada; solo restaurar cuando
+        # esté oculta o minimizada desde el escritorio.
+        if not self.isVisible() or self.isMinimized():
+            self.showMaximized()
+
         self.raise_()
         self.activateWindow()
+        # update() programa una repintada coalescida sin bloquear este callback.
+        self.view.viewport().update()
 
     def restart_service(self):
         """Lanza el proceso auxiliar de reinicio y cierra esta instancia de inmediato."""
@@ -808,7 +822,8 @@ class VasculumApp(QMainWindow):
                 pass
 
         # 1. Limpiar caché global de pixmaps para forzar la recarga de imágenes modificadas/nuevas
-        from domain_visor.character_row_item import PIXMAP_CACHE
+        from domain_visor.character_row_item import IMAGE_CACHE, PIXMAP_CACHE
+        IMAGE_CACHE.clear()
         PIXMAP_CACHE.clear()
 
         # 2. Limpiar el caché de personajes en memoria para obligar a reconstruirlo desde cero desde disco
