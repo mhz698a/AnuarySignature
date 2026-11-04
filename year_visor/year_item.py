@@ -13,7 +13,7 @@ from domain_visor.theme import Theme
 from character_visor.character_row_item import CharacterRowItem
 from character_visor.character_manager import CharacterManager
 from year_visor.year_dialog import find_season_name
-
+from engines.scene_view import VasculumApp
 
 class YearItem(QGraphicsItem):
     """
@@ -197,7 +197,7 @@ class YearItem(QGraphicsItem):
             else:
                 dialog = YearDialog(self._year_value, parent_window)
                 if parent_window is not None:
-                    from domain_visor.scene_view import VasculumApp
+                    
                     if isinstance(parent_window, VasculumApp):
                         dialog.galleryanuary_requested.connect(
                             parent_window.galleryanuary_requested

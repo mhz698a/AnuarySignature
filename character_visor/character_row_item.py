@@ -9,6 +9,9 @@ from PyQt6.QtWidgets import QGraphicsItem, QMenu, QMessageBox
 from character_visor.character_dialog import CharacterEditDialog
 from domain_visor.theme import Theme
 from year_visor.year_item import YearItem
+from engines.scene_view import VasculumApp
+
+
 
 # QImage se puede decodificar y preparar en el hilo de trabajo.
 # QPixmap se crea exclusivamente en el hilo GUI.
@@ -201,7 +204,7 @@ class CharacterIconItem(QGraphicsItem):
             QMessageBox.warning(None, "GalleryAnuary", "No hay una ventana asociada al visor.")
             return
 
-        from domain_visor.scene_view import VasculumApp
+        
         main_window = views[0].window()
         if not isinstance(main_window, VasculumApp):
             QMessageBox.warning(
@@ -263,7 +266,7 @@ class CharacterIconItem(QGraphicsItem):
 
         dialog = CharacterEditDialog(self.char_data, parent=view)
         if view is not None:
-            from domain_visor.scene_view import VasculumApp
+            
             main_window = view.window()
             if isinstance(main_window, VasculumApp):
                 dialog.galleryanuary_requested.connect(
@@ -295,7 +298,7 @@ class CharacterIconItem(QGraphicsItem):
             self.update()
 
             if view:
-                from domain_visor.scene_view import VasculumApp
+                
                 main_window = view.window()
                 if isinstance(main_window, VasculumApp):
                     main_window.trigger_render()
