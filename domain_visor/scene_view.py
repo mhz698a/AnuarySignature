@@ -806,7 +806,9 @@ class VasculumApp(QMainWindow):
             self.center_domains_container()
 
     def center_domains_container(self):
-        rect = self.scene.itemsBoundingRect()
+        # RenderEngine ya calcula y asigna sceneRect; no recorrer todos los items
+        # con itemsBoundingRect al restaurar la ventana por primera vez.
+        rect = self.scene.sceneRect()
         if not rect.isNull():
             self.view.centerOn(rect.center())
 
