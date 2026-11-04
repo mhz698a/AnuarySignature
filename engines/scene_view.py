@@ -14,11 +14,11 @@ from PyQt6.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
 
 from domain_visor.theme import Theme
-from domain_visor.autostart import is_startup_enabled, set_startup_enabled
+from engines.autostart import is_startup_enabled, set_startup_enabled
 from domain_visor.dependent_path_dialog import DependentPathDialog
 from engines.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
 from engines.render_engine import RenderEngine
-from domain_visor.json_editor import JSONEditorPanel
+from character_visor.json_editor import JSONEditorPanel
 from character_visor.character_manager import CharacterManager
 from domain_visor.progress_dialog import ProgressDialog
 from year_visor.year_item import YearItem

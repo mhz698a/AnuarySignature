@@ -11,8 +11,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from domain_visor.theme import Theme
-from domain_visor.raw_json_editor import RawJSONEditorDialog
-from domain_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
+from character_visor.raw_json_editor import RawJSONEditorDialog
+from character_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
 
 class CharacterEditDialog(QDialog):
     """
