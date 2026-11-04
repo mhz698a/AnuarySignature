@@ -5,6 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+if os.name == "nt":
+    import winreg
+
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE_NAME = "DomainViewer"
@@ -26,7 +29,6 @@ def is_startup_enabled():
     if os.name != "nt":
         return False
 
-    import winreg
 
     try:
         with winreg.OpenKey(
@@ -46,7 +48,6 @@ def set_startup_enabled(enabled, entry_script=None):
     if os.name != "nt":
         raise OSError("El inicio automático está disponible únicamente en Windows.")
 
-    import winreg
 
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
         if enabled:

@@ -4,6 +4,9 @@ import ctypes
 import os
 import tempfile
 
+if os.name != "nt":
+    import fcntl
+
 
 WINDOWS_MUTEX_NAME = r"Local\etudetools.DomainViewer.SingleInstance"
 
@@ -41,7 +44,6 @@ class SingleInstanceMutex:
             return True
 
         # Keep development/test runs on macOS and Linux single-instance too.
-        import fcntl
 
         lock_path = os.path.join(tempfile.gettempdir(), "DomainViewer.instance.lock")
         fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
@@ -64,7 +66,6 @@ class SingleInstanceMutex:
 
         if self._lock_fd is not None:
             try:
-                import fcntl
                 fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
             finally:
                 os.close(self._lock_fd)
