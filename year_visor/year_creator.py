@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
 from PyQt6.QtCore import Qt
 from domain_visor.theme import Theme
-from year_visor.year_dialog import calculate_id_package_default
+from year_visor.year_utils import calculate_id_package_default
 from character_visor.character_manager import CharacterManager
 
 class SeasonNameDialog(QDialog):
