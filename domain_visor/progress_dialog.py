@@ -5,7 +5,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
 import pathlib
 import threading
 from domain_visor.theme import Theme
-from domain_visor.character_row_item import (
+from character_visor.character_row_item import (
     IMAGE_CACHE,
     load_icon_thumbnail,
     resolve_character_icon_path,

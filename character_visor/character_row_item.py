@@ -4,9 +4,11 @@ import os
 from pathlib import Path
 from PyQt6.QtCore import QRectF, Qt, QUrl, QSize, QRect
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPixmap, QImage, QImageReader, QDesktopServices, QAction
-from PyQt6.QtWidgets import QGraphicsItem, QToolTip, QMenu, QMessageBox
+from PyQt6.QtWidgets import QGraphicsItem, QMenu, QMessageBox
 
+from character_visor.character_dialog import CharacterEditDialog
 from domain_visor.theme import Theme
+from year_visor.year_item import YearItem
 
 # QImage se puede decodificar y preparar en el hilo de trabajo.
 # QPixmap se crea exclusivamente en el hilo GUI.
@@ -248,7 +250,6 @@ class CharacterIconItem(QGraphicsItem):
         msg.exec()
 
     def view_profile_credential(self):
-        from domain_visor.character_dialog import CharacterEditDialog
         view = None
         scene = self.scene()
         if scene:
@@ -282,7 +283,6 @@ class CharacterIconItem(QGraphicsItem):
             self.update_tooltip_and_attributes(new_data)
             self.load_pixmap()
 
-            from domain_visor.year_item import YearItem
             mgr = YearItem.get_character_manager()
             year_str = str(new_data.get("year"))
             if year_str in mgr._cache:

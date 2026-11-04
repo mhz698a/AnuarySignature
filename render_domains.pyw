@@ -9,10 +9,10 @@ import traceback
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QIcon, QImage, QPainter, QColor
 
-from domain_visor.instance_mutex import SingleInstanceMutex
-from domain_visor.runtime_config import application_settings, get_dependent_path
-from domain_visor.scene_view import VasculumApp
-from domain_visor.system_tray import SystemTrayController
+from engines.instance_mutex import SingleInstanceMutex
+from engines.runtime_config import application_settings, get_dependent_path
+from engines.scene_view import VasculumApp
+from engines.system_tray import SystemTrayController
 from domain_visor.theme import Theme
 
 

@@ -3,6 +3,7 @@
 import os
 import json
 import traceback
+import datetime
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
@@ -12,7 +13,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDir, QModelIndex, QUrl, QPoint, pyqtSignal
 from PyQt6.QtGui import QFileSystemModel, QDesktopServices, QAction
 from domain_visor.theme import Theme
-from domain_visor.character_manager import CharacterManager
+from character_visor.character_manager import CharacterManager
+from year_visor.year_creator import validate_date_constraints
 
 def calculate_id_package_default(year: int, infra_path: Path = None) -> str:
     """
@@ -841,10 +843,10 @@ class YearDialog(QDialog):
 
     def save_data(self):
         # Evitar guardar/crear la credencial de año en años que aún no ocurren si no existía el archivo
-        import datetime
+        
         today = datetime.date.today()
         if self.year_value > today.year and not self.json_filepath.exists():
-            from domain_visor.year_creator import validate_date_constraints
+            
             allowed, message = validate_date_constraints(self.year_value)
             if not allowed:
                 QMessageBox.warning(self, "Advertencia", f"No se pueden guardar credenciales para un año que aún no ocurre.\n{message}")

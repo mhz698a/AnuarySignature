@@ -1,13 +1,19 @@
 # domain_visor/year_item.py
+import datetime
 
 from PyQt6.QtCore import QRectF, Qt, QPointF
 from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 from PyQt6.QtWidgets import QGraphicsItem
 
+from year_visor.year_creator import trigger_year_creation
+from year_visor.year_creator import validate_date_constraints
+from year_visor.year_dialog import YearDialog
 from domain_visor.port_item import PortItem
 from domain_visor.theme import Theme
-from domain_visor.character_row_item import CharacterRowItem
-from domain_visor.character_manager import CharacterManager
+from character_visor.character_row_item import CharacterRowItem
+from character_visor.character_manager import CharacterManager
+from year_visor.year_dialog import find_season_name
+
 
 class YearItem(QGraphicsItem):
     """
@@ -86,7 +92,7 @@ class YearItem(QGraphicsItem):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             # Actualizar Tooltip dinámicamente
             char_mgr = self.get_character_manager()
-            from domain_visor.year_dialog import find_season_name
+            
             season_name = find_season_name(self._year_value, char_mgr.base_path)
             season_clean = season_name.replace("_", " ")
             self.setToolTip(f"{self._year_value} - {season_clean}")
@@ -105,7 +111,6 @@ class YearItem(QGraphicsItem):
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             # Actualizar Tooltip dinámicamente
             char_mgr = self.get_character_manager()
-            from domain_visor.year_dialog import find_season_name
             season_name = find_season_name(self._year_value, char_mgr.base_path)
             season_clean = season_name.replace("_", " ")
             self.setToolTip(f"{self._year_value} - {season_clean}")
@@ -135,12 +140,11 @@ class YearItem(QGraphicsItem):
             char_mgr = self.get_character_manager()
             year_path = char_mgr.base_path / str(self._year_value)
             
-            import datetime
-            from domain_visor.year_creator import validate_date_constraints
+            
             
             # Decidir si aplicamos validación de fecha según si la carpeta del año existe
             # Y si el archivo de credenciales ya existe
-            from domain_visor.year_dialog import YearDialog
+            
             temp_dialog = YearDialog(self._year_value, parent_window, base_path=char_mgr.base_path)
             json_exists = temp_dialog.json_filepath.exists()
 
@@ -184,7 +188,6 @@ class YearItem(QGraphicsItem):
                 return
 
             if not year_path.exists():
-                from domain_visor.year_creator import trigger_year_creation
                 success = trigger_year_creation(self._year_value, parent_window, base_path=char_mgr.base_path)
                 if success:
                     if parent_window and hasattr(parent_window, "refresh_data"):
@@ -192,7 +195,6 @@ class YearItem(QGraphicsItem):
                     else:
                         self.update()
             else:
-                from domain_visor.year_dialog import YearDialog
                 dialog = YearDialog(self._year_value, parent_window)
                 if parent_window is not None:
                     from domain_visor.scene_view import VasculumApp

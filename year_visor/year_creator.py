@@ -7,7 +7,8 @@ from pathlib import Path
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
 from PyQt6.QtCore import Qt
 from domain_visor.theme import Theme
-from domain_visor.year_dialog import calculate_id_package_default
+from year_visor.year_dialog import calculate_id_package_default
+from character_visor.character_manager import CharacterManager
 
 class SeasonNameDialog(QDialog):
     """
@@ -222,7 +223,6 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
     Maneja validaciones de fecha, confirmaciones, diálogo de entrada de temporada y creación de carpetas/credenciales.
     Retorna True si la creación fue exitosa.
     """
-    from domain_visor.character_manager import CharacterManager
 
     # Inicializar rutas
     mgr = CharacterManager()

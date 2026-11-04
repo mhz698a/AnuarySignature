@@ -1,6 +1,7 @@
 # domain_visor/layout_engine.py
 
-from domain_visor.character_manager import CharacterManager
+from character_visor.character_manager import CharacterManager
+from PyQt6.QtGui import QFont, QFontMetrics
 
 class LayoutEngine:
     """
@@ -171,7 +172,7 @@ class LayoutEngine:
         # Calcular dimensiones y posición del título del contenedor (container_title_item)
         title_str = getattr(container, "title", "")
         try:
-            from PyQt6.QtGui import QFont, QFontMetrics
+            
             font = QFont("Arial", 11, QFont.Weight.Bold)
             fm = QFontMetrics(font)
             title_w = max(120.0, float(fm.horizontalAdvance(title_str) + 20))

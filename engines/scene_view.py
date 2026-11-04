@@ -16,14 +16,15 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
 from domain_visor.theme import Theme
 from domain_visor.autostart import is_startup_enabled, set_startup_enabled
 from domain_visor.dependent_path_dialog import DependentPathDialog
-from domain_visor.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
-from domain_visor.render_engine import RenderEngine
+from engines.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
+from engines.render_engine import RenderEngine
 from domain_visor.json_editor import JSONEditorPanel
-from domain_visor.character_manager import CharacterManager
+from character_visor.character_manager import CharacterManager
 from domain_visor.progress_dialog import ProgressDialog
-from domain_visor.year_item import YearItem
+from year_visor.year_item import YearItem
 from domain_visor.about_dialog import AboutDialog
 from domain_visor.verbose_resolve_dialog import VerboseResolveDialog
+from character_visor.character_row_item import IMAGE_CACHE, PIXMAP_CACHE
 
 class ZoomableGraphicsView(QGraphicsView):
     """
@@ -824,7 +825,6 @@ class VasculumApp(QMainWindow):
                 pass
 
         # 1. Limpiar caché global de pixmaps para forzar la recarga de imágenes modificadas/nuevas
-        from domain_visor.character_row_item import IMAGE_CACHE, PIXMAP_CACHE
         IMAGE_CACHE.clear()
         PIXMAP_CACHE.clear()
 

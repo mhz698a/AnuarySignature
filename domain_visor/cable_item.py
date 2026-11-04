@@ -4,7 +4,9 @@ from PyQt6.QtCore import QRectF, Qt, QPointF
 from PyQt6.QtGui import QPen, QColor, QPainterPath, QPainter, QPainterPathStroker
 from PyQt6.QtWidgets import QGraphicsPathItem
 
-from domain_visor.theme import Theme # type: ignore
+from domain_visor.theme import Theme
+from year_visor.year_dialog import ConnectionRenameDialog
+
 
 class CableItem(QGraphicsPathItem):
     """
@@ -159,7 +161,6 @@ class CableItem(QGraphicsPathItem):
                 json_path = parent_window.json_path
 
             if json_path:
-                from domain_visor.year_dialog import ConnectionRenameDialog
                 dialog = ConnectionRenameDialog(self.connection, json_path, parent_window)
                 dialog.exec()
                 if dialog.saved:
