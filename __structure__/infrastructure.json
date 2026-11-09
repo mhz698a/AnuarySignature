@@ -8,7 +8,7 @@
         "domain": "paragénesis_de_emilia",
         "range": "1999-2003",
         "norm_BaaS": "BootOTE [3.0 - 5.4]",
-        "role": ""
+        "role": "protodominio"
       },
       {
         "id": 1,
@@ -67,7 +67,7 @@
         "domain": "hermandad_de_paulina",
         "range": "2012-2014",
         "norm_BaaS": "BootMGR [4.5 - 4.9] & [5.0 - 5.9]",
-        "role": ""
+        "role": "protodominio"
       },
       {
         "id": 4,
@@ -126,7 +126,7 @@
         "domain": "manifiesto_sobrescritor",
         "range": "2023-2025",
         "norm_BaaS": "BootTEX [3.6 - 5.9] & [5.91 - 5.99] + IELS",
-        "role": ""
+        "role": "protodominio"
       },
       {
         "id": 7,
