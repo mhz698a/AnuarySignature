@@ -489,7 +489,8 @@ class KnowledgeWardrobeWidget(QWidget):
 
     @staticmethod
     def _path_key(path: str | Path) -> str:
-        return os.path.normcase(os.path.abspath(os.fspath(path)))
+        normalized = os.path.realpath(os.path.abspath(os.fspath(path)))
+        return os.path.normcase(normalized)
 
     def reload(self):
         self._scan_generation += 1
@@ -578,11 +579,18 @@ class KnowledgeWardrobeWidget(QWidget):
             try:
                 if not path.is_file():
                     raise OSError("El archivo ya no existe.")
-                opened = QDesktopServices.openUrl(
-                    QUrl.fromLocalFile(str(path.resolve()))
-                )
-                if not opened:
-                    raise OSError("Windows no pudo abrir el archivo con su programa asociado.")
+                if os.name == "nt":
+                    # os.startfile sin verbo reproduce el doble clic de Explorer
+                    # y delega la apertura en la asociación de archivos de Windows.
+                    os.startfile(str(path.resolve()))
+                else:
+                    opened = QDesktopServices.openUrl(
+                        QUrl.fromLocalFile(str(path.resolve()))
+                    )
+                    if not opened:
+                        raise OSError(
+                            "El sistema no pudo abrir el archivo con su aplicación asociada."
+                        )
             except OSError as exc:
                 QMessageBox.warning(
                     self,
@@ -666,6 +674,9 @@ class KnowledgeWardrobeWidget(QWidget):
                 )
             )
             client_socket.disconnected.connect(client_socket.deleteLater)
+            # Drenar cualquier dato que ya estuviera disponible al aceptar
+            # la conexión antes de que se conectara readyRead.
+            self._read_move_notification(client_socket)
 
     def _read_move_notification(self, socket, final: bool = False):
         buffered = socket.property("move_event_buffer") or b""
