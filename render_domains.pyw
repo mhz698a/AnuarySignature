@@ -17,7 +17,7 @@ from domain_visor.theme import Theme
 
 
 APP_DIR = Path(__file__).resolve().parent
-ICON_WIN = APP_DIR / "assets" / "online.ico"
+ICON_WIN = APP_DIR / "assets" / "directorio.ico"
 JSON_DOMAINS = APP_DIR / "__structure__" / "infrastructure.json"
 CONTAINER_DOMAINS = APP_DIR / "__structure__" / "container.json"
 
