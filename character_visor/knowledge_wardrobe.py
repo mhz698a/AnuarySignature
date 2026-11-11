@@ -5,11 +5,19 @@ from __future__ import annotations
 import ctypes
 import json
 import os
+import uuid
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QSize, Qt, pyqtSignal, QThreadPool
-from PyQt6.QtGui import QAction, QIcon, QImage, QImageReader, QPixmap
-from PyQt6.QtNetwork import QLocalSocket
+from PyQt6.QtCore import QObject, QRunnable, QSize, Qt, QUrl, pyqtSignal, QThreadPool
+from PyQt6.QtGui import (
+    QAction,
+    QDesktopServices,
+    QIcon,
+    QImage,
+    QImageReader,
+    QPixmap,
+)
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -110,8 +118,12 @@ def _move_to_recycle_bin(path: Path) -> None:
         raise OSError(result or 1, f"No se pudo enviar a la Papelera de reciclaje: {path}")
 
 
-def _enqueue_in_catch_etude(path: Path, timeout_ms: int = 3000) -> None:
-    """Send one file to the running CatchEtude instance and validate its reply."""
+def _enqueue_in_catch_etude(
+    path: Path,
+    notify_server: str,
+    timeout_ms: int = 3000,
+) -> None:
+    """Enqueue a file and subscribe to CatchEtude's successful-move notification."""
     socket = QLocalSocket()
     socket.connectToServer(CATCH_ETUDE_SERVER)
     if not socket.waitForConnected(timeout_ms):
@@ -123,6 +135,7 @@ def _enqueue_in_catch_etude(path: Path, timeout_ms: int = 3000) -> None:
         "cmd": "enqueue_path",
         "path": str(path.resolve()),
         "hide_secure": True,
+        "notify_server": notify_server,
     }
     payload = (json.dumps(request, ensure_ascii=False) + "\n").encode("utf-8")
 
@@ -220,6 +233,7 @@ class _FileOperationTask(QRunnable):
         paths: list[Path],
         destination: Path | None = None,
         new_name: str | None = None,
+        notify_server: str | None = None,
     ):
         super().__init__()
         self.generation = generation
@@ -227,6 +241,7 @@ class _FileOperationTask(QRunnable):
         self.paths = paths
         self.destination = destination
         self.new_name = new_name
+        self.notify_server = notify_server
         self.signals = _OperationSignals()
 
     def run(self):
@@ -289,7 +304,10 @@ class _FileOperationTask(QRunnable):
                 try:
                     if not source.is_file():
                         raise OSError("El archivo ya no existe.")
-                    _enqueue_in_catch_etude(source)
+                    _enqueue_in_catch_etude(
+                        source,
+                        notify_server=self.notify_server,
+                    )
                     result["successes"].append(str(source))
                 except Exception as exc:
                     result["errors"].append(f"{source.name}: {exc}")
@@ -341,6 +359,24 @@ class KnowledgeWardrobeWidget(QWidget):
         self._scan_task = None
         self._operation_task = None
         self._busy = False
+        self._scanning = False
+        self._suppressed_paths = set()
+
+        # CatchEtude envía los eventos file_moved a este servidor IPC local.
+        self._move_notification_server = QLocalServer(self)
+        self._move_notification_server_name = (
+            f"DomainViewerKnowledge_{os.getpid()}_{uuid.uuid4().hex[:16]}"
+        )
+        self._move_notification_server.newConnection.connect(
+            self._on_move_notification_connection
+        )
+        if not self._move_notification_server.listen(
+            self._move_notification_server_name
+        ):
+            raise RuntimeError(
+                "No se pudo iniciar el endpoint local de notificaciones "
+                f"para CatchEtude: {self._move_notification_server.errorString()}"
+            )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -353,6 +389,14 @@ class KnowledgeWardrobeWidget(QWidget):
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
         layout.addWidget(self.toolbar)
+
+        self.reload_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload),
+            "Recargar",
+            self,
+        )
+        self.reload_action.triggered.connect(self.reload)
+        self.toolbar.addAction(self.reload_action)
 
         self.import_action = QAction("Importar Archivo", self)
         self.import_action.triggered.connect(self.import_files)
@@ -409,6 +453,13 @@ class KnowledgeWardrobeWidget(QWidget):
         self.files_list.itemSelectionChanged.connect(
             self._update_action_states
         )
+        self.files_list.itemDoubleClicked.connect(self.open_file_item)
+        self.files_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.files_list.customContextMenuRequested.connect(
+            self.show_file_context_menu
+        )
         self.stack.addWidget(self.files_list)
 
         self.placeholder = QLabel(self.stack)
@@ -436,11 +487,18 @@ class KnowledgeWardrobeWidget(QWidget):
         self.placeholder.setText(message)
         self.stack.setCurrentWidget(self.placeholder)
 
+    @staticmethod
+    def _path_key(path: str | Path) -> str:
+        return os.path.normcase(os.path.abspath(os.fspath(path)))
+
     def reload(self):
         self._scan_generation += 1
         generation = self._scan_generation
+        self._scanning = True
+        self._suppressed_paths.clear()
         self.files_list.clear()
         self.status_label.clear()
+        self._update_action_states()
 
         self._set_placeholder("Cargando archivos de Knowledge…")
         task = _DirectoryScanTask(generation, self.knowledge_directory)
@@ -451,6 +509,9 @@ class KnowledgeWardrobeWidget(QWidget):
 
     def _on_file_found(self, generation: int, file_path: str, thumbnail):
         if generation != self._scan_generation:
+            return
+
+        if self._path_key(file_path) in self._suppressed_paths:
             return
 
         path = Path(file_path)
@@ -471,8 +532,10 @@ class KnowledgeWardrobeWidget(QWidget):
             return
 
         self._scan_task = None
+        self._scanning = False
         if error and error != "missing":
             self._set_placeholder(f"No se pudo leer la carpeta Knowledge:\n{error}")
+            self._suppressed_paths.clear()
             self._update_action_states()
             return
 
@@ -490,17 +553,171 @@ class KnowledgeWardrobeWidget(QWidget):
                 f"{self.files_list.count()} archivo(s) en Knowledge."
             )
 
+        self._suppressed_paths.clear()
         self._update_action_states()
 
     def _update_action_states(self):
         has_selection = bool(self.files_list.selectedItems())
         single_selection = len(self.files_list.selectedItems()) == 1
         enabled = not self._busy
+        self.reload_action.setEnabled(enabled and not self._scanning)
         self.import_action.setEnabled(enabled)
         self.rename_action.setEnabled(enabled and single_selection)
         self.send_action.setEnabled(enabled and has_selection)
         self.delete_action.setEnabled(enabled and has_selection)
         self.selection_button.setEnabled(enabled and self.files_list.count() > 0)
+
+    def open_file_item(self, item: QListWidgetItem):
+        """Open a file with the Windows/default application association."""
+        if item is None:
+            return
+        self.open_paths([Path(item.data(Qt.ItemDataRole.UserRole))])
+
+    def open_paths(self, paths: list[Path]):
+        for path in paths:
+            try:
+                if not path.is_file():
+                    raise OSError("El archivo ya no existe.")
+                opened = QDesktopServices.openUrl(
+                    QUrl.fromLocalFile(str(path.resolve()))
+                )
+                if not opened:
+                    raise OSError("Windows no pudo abrir el archivo con su programa asociado.")
+            except OSError as exc:
+                QMessageBox.warning(
+                    self,
+                    "Abrir archivo",
+                    f"No se pudo abrir {path.name}:\n{exc}",
+                )
+
+    def open_selected_files(self):
+        self.open_paths(self.selected_paths())
+
+    def show_file_properties(self):
+        selected = self.selected_paths()
+        if len(selected) != 1:
+            return
+
+        path = selected[0]
+        if os.name != "nt":
+            QMessageBox.warning(
+                self,
+                "Propiedades del archivo",
+                "El diálogo de propiedades solicitado está disponible en Windows.",
+            )
+            return
+
+        try:
+            if not path.is_file():
+                raise OSError("El archivo ya no existe.")
+            os.startfile(str(path.resolve()), "properties")
+        except OSError as exc:
+            QMessageBox.warning(
+                self,
+                "Propiedades del archivo",
+                f"No se pudieron abrir las propiedades de {path.name}:\n{exc}",
+            )
+
+    def show_file_context_menu(self, position):
+        item = self.files_list.itemAt(position)
+        if item is None:
+            return
+
+        # Un clic derecho sobre un elemento no seleccionado sustituye la
+        # selección; sobre uno ya seleccionado conserva la selección múltiple.
+        if not item.isSelected():
+            self.files_list.clearSelection()
+            item.setSelected(True)
+
+        selected_count = len(self.files_list.selectedItems())
+        menu = QMenu(self.files_list)
+
+        open_action = menu.addAction("Abrir")
+        open_action.triggered.connect(self.open_selected_files)
+
+        rename_action = menu.addAction("Renombrar Archivo")
+        rename_action.setEnabled(selected_count == 1)
+        rename_action.triggered.connect(self.rename_selected_file)
+
+        send_action = menu.addAction("Enviar a CatchEtude")
+        send_action.triggered.connect(self.send_selected_to_catch_etude)
+
+        delete_action = menu.addAction("Eliminar Archivo")
+        delete_action.triggered.connect(self.delete_selected_files)
+
+        menu.addSeparator()
+
+        properties_action = menu.addAction("Propiedades del archivo")
+        properties_action.setEnabled(selected_count == 1)
+        properties_action.triggered.connect(self.show_file_properties)
+
+        menu.exec(self.files_list.viewport().mapToGlobal(position))
+
+    def _on_move_notification_connection(self):
+        while self._move_notification_server.hasPendingConnections():
+            client_socket = self._move_notification_server.nextPendingConnection()
+            client_socket.setProperty("move_event_buffer", b"")
+            client_socket.readyRead.connect(
+                lambda sock=client_socket: self._read_move_notification(sock)
+            )
+            client_socket.disconnected.connect(
+                lambda sock=client_socket: self._read_move_notification(
+                    sock, final=True
+                )
+            )
+            client_socket.disconnected.connect(client_socket.deleteLater)
+
+    def _read_move_notification(self, socket, final: bool = False):
+        buffered = socket.property("move_event_buffer") or b""
+        data = bytes(buffered) + socket.readAll().data()
+
+        while b"\n" in data:
+            line, data = data.split(b"\n", 1)
+            if line.strip():
+                self._process_move_notification(line)
+
+        if final and data.strip():
+            self._process_move_notification(data)
+            data = b""
+
+        socket.setProperty("move_event_buffer", data)
+
+    def _process_move_notification(self, payload: bytes):
+        try:
+            event = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+
+        if not isinstance(event, dict) or event.get("event") != "file_moved":
+            return
+
+        source = event.get("src")
+        if not isinstance(source, str) or not source.strip():
+            return
+
+        source_key = self._path_key(source)
+        self._suppressed_paths.add(source_key)
+
+        removed_name = Path(source).name
+        removed = 0
+        for index in range(self.files_list.count() - 1, -1, -1):
+            item = self.files_list.item(index)
+            item_path = item.data(Qt.ItemDataRole.UserRole)
+            if item_path and self._path_key(item_path) == source_key:
+                self.files_list.takeItem(index)
+                removed += 1
+
+        if removed:
+            self.status_label.setText(
+                f'CatchEtude movió "{removed_name}"; archivo retirado de la cuadrícula.'
+            )
+            if self.files_list.count() == 0:
+                self._set_placeholder(
+                    "La carpeta Knowledge existe, pero no contiene archivos."
+                )
+            else:
+                self.stack.setCurrentWidget(self.files_list)
+            self._update_action_states()
 
     def select_all(self):
         self.files_list.selectAll()
@@ -620,12 +837,27 @@ class KnowledgeWardrobeWidget(QWidget):
 
         self._operation_generation += 1
         generation = self._operation_generation
+        notify_server = None
+        if operation == "send":
+            if not self._move_notification_server.isListening():
+                self._busy = False
+                self._update_action_states()
+                QMessageBox.warning(
+                    self,
+                    "CatchEtude",
+                    "No está disponible el endpoint para recibir notificaciones "
+                    "de movimientos de CatchEtude.",
+                )
+                return
+            notify_server = self._move_notification_server.serverName()
+
         task = _FileOperationTask(
             generation,
             operation,
             paths,
             destination=self.knowledge_directory,
             new_name=new_name,
+            notify_server=notify_server,
         )
         task.signals.finished.connect(self._on_operation_finished)
         self._operation_task = task
