@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon,
 )
 
+APP_NAME = "DomainViewer"
 
 class SystemTrayController(QObject):
     """System tray UI decoupled from the Domain Viewer main window."""
@@ -21,7 +22,11 @@ class SystemTrayController(QObject):
 
         self.available = QSystemTrayIcon.isSystemTrayAvailable()
         self.tray_icon = QSystemTrayIcon(QIcon(str(icon_path)), self)
-        self.tray_icon.setToolTip("Domain Viewer")
+        self.tray_icon.setToolTip(
+            APP_NAME + "\n"
+            "Infraestructura de años, dominios y superdominios\n"
+            "Contenedor de Anuarios del Regimen Sobrescritor""
+        )
 
         self.menu = QMenu()
         self.menu.setStyleSheet("""
