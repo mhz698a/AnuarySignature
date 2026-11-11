@@ -230,7 +230,11 @@ class _FileOperationTask(QRunnable):
         self.signals = _OperationSignals()
 
     def run(self):
-        result = {"successes": [], "errors": []}
+        result = {
+            "operation": self.operation,
+            "successes": [],
+            "errors": [],
+        }
 
         if self.operation == "import":
             try:
@@ -254,7 +258,7 @@ class _FileOperationTask(QRunnable):
                         raise FileExistsError(f"Ya existe un archivo con ese nombre: {target.name}")
                     source.rename(target)
                     result["successes"].append(str(target))
-                except OSError as exc:
+                except Exception as exc:
                     result["errors"].append(f"{source.name}: {exc}")
 
         elif self.operation == "rename":
@@ -277,7 +281,7 @@ class _FileOperationTask(QRunnable):
                         raise OSError("El archivo ya no existe.")
                     _move_to_recycle_bin(source)
                     result["successes"].append(str(source))
-                except OSError as exc:
+                except Exception as exc:
                     result["errors"].append(f"{source.name}: {exc}")
 
         elif self.operation == "send":
@@ -287,7 +291,7 @@ class _FileOperationTask(QRunnable):
                         raise OSError("El archivo ya no existe.")
                     _enqueue_in_catch_etude(source)
                     result["successes"].append(str(source))
-                except OSError as exc:
+                except Exception as exc:
                     result["errors"].append(f"{source.name}: {exc}")
 
         self.signals.finished.emit(self.generation, result)
@@ -469,6 +473,7 @@ class KnowledgeWardrobeWidget(QWidget):
         self._scan_task = None
         if error and error != "missing":
             self._set_placeholder(f"No se pudo leer la carpeta Knowledge:\n{error}")
+            self._update_action_states()
             return
 
         if not directory_exists:
@@ -650,12 +655,11 @@ class KnowledgeWardrobeWidget(QWidget):
                 + "\n".join(errors[:12]),
             )
 
-        if successes and any(
-            Path(path).parent == self.knowledge_directory
-            for path in successes
-        ):
+        operation = result.get("operation")
+        if successes and operation in {"import", "rename", "delete"}:
             self.reload()
-        elif self.files_list.count():
-            self._update_action_states()
+            self.status_label.setText(
+                f"Operación completada: {len(successes)} archivo(s)."
+            )
         else:
             self._update_action_states()
