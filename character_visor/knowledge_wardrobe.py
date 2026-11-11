@@ -264,14 +264,14 @@ class _FileOperationTask(QRunnable):
         elif self.operation == "rename":
             source = self.paths[0]
             try:
-                target = source.with_name(self.new_name)
                 if not self.new_name or self.new_name in {".", ".."}:
                     raise OSError("El nombre del archivo no es válido.")
+                target = source.with_name(self.new_name)
                 if target.exists() and target.resolve() != source.resolve():
                     raise FileExistsError(f"Ya existe un archivo llamado {target.name}.")
                 source.rename(target)
                 result["successes"].append(str(target))
-            except OSError as exc:
+            except Exception as exc:
                 result["errors"].append(f"{source.name}: {exc}")
 
         elif self.operation == "delete":
