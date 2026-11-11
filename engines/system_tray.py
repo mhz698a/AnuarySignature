@@ -25,7 +25,7 @@ class SystemTrayController(QObject):
         self.tray_icon.setToolTip(
             APP_NAME + "\n"
             "Infraestructura de años, dominios y superdominios\n"
-            "Contenedor de Anuarios del Regimen Sobrescritor""
+            "Contenedor de Anuarios del Regimen Sobrescritor"
         )
 
         self.menu = QMenu()
