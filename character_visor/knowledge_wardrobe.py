@@ -388,6 +388,11 @@ class KnowledgeWardrobeWidget(QWidget):
         self.toolbar.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
+        self.toolbar.setStyleSheet("""
+            QToolButton {
+                min-height: 30px;
+            }
+        """)
         layout.addWidget(self.toolbar)
 
         self.reload_action = QAction(
