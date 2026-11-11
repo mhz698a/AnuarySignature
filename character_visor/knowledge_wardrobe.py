@@ -370,12 +370,12 @@ class KnowledgeWardrobeWidget(QWidget):
         self._move_notification_server.newConnection.connect(
             self._on_move_notification_connection
         )
+        self._move_notification_server_error = ""
         if not self._move_notification_server.listen(
             self._move_notification_server_name
         ):
-            raise RuntimeError(
-                "No se pudo iniciar el endpoint local de notificaciones "
-                f"para CatchEtude: {self._move_notification_server.errorString()}"
+            self._move_notification_server_error = (
+                self._move_notification_server.errorString()
             )
 
         layout = QVBoxLayout(self)
@@ -846,7 +846,8 @@ class KnowledgeWardrobeWidget(QWidget):
                     self,
                     "CatchEtude",
                     "No está disponible el endpoint para recibir notificaciones "
-                    "de movimientos de CatchEtude.",
+                    "de movimientos de CatchEtude.\n\n"
+                    f"{self._move_notification_server_error}",
                 )
                 return
             notify_server = self._move_notification_server.serverName()
