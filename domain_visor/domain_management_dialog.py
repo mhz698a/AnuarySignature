@@ -50,8 +50,8 @@ class DomainManagementDialog(QDialog):
 
         self.setWindowTitle("Gestionar Dominio")
         self.setModal(True)
-        self.setMinimumSize(1040, 680)
-        self.resize(1240, 800)
+        self.setMinimumSize(900, 600)
+        self.resize(900, 600)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
         )

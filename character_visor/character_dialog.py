@@ -46,10 +46,10 @@ class CharacterEditDialog(QDialog):
         self.saved = False
         self._raw_data_staged = False
 
-        self.setWindowTitle("Modificar Personaje")
+        self.setWindowTitle("Gestionar Personaje")
         self.setModal(True)
         self.setMinimumWidth(1000)
-        self.resize(1160, 760)
+        self.resize(1060, 700)
 
         # Quitar botón de ayuda
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
