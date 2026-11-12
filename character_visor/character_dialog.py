@@ -7,12 +7,16 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
     QComboBox, QPushButton, QMessageBox, QFileDialog, QScrollArea, QWidget,
-    QListWidget, QListWidgetItem
+    QListWidget, QListWidgetItem, QTabWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from domain_visor.theme import Theme
 from character_visor.raw_json_editor import RawJSONEditorDialog
 from character_visor.type_underwear_editor import load_global_type_underwear, TypeUnderwearEditorDialog
+from character_visor.knowledge_wardrobe import (
+    KnowledgeWardrobeWidget,
+    resolve_knowledge_directory,
+)
 
 class CharacterEditDialog(QDialog):
     """
@@ -42,10 +46,10 @@ class CharacterEditDialog(QDialog):
         self.saved = False
         self._raw_data_staged = False
 
-        self.setWindowTitle("Modificar Personaje")
-        self.setModal(True)
-        self.setMinimumWidth(900)
-        self.resize(1000, 650)
+        self.setWindowTitle("Gestionar Personaje")
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setMinimumWidth(1000)
+        self.resize(1060, 700)
 
         # Quitar botón de ayuda
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -286,7 +290,28 @@ class CharacterEditDialog(QDialog):
         scroll_layout.addWidget(self.cb_time_of_year, 10, 1, 1, 2)
 
         scroll.setWidget(scroll_content)
-        main_layout.addWidget(scroll)
+
+        # Separar la edición de credenciales de la biblioteca Knowledge del personaje.
+        self.tabs = QTabWidget(self)
+        credential_page = QWidget(self.tabs)
+        credential_page_layout = QVBoxLayout(credential_page)
+        credential_page_layout.setContentsMargins(0, 0, 0, 0)
+        credential_page_layout.addWidget(scroll)
+        self.tabs.addTab(credential_page, "Credencial")
+
+        knowledge_directory = resolve_knowledge_directory(
+            self.initial_character_json_path,
+            self.char_data.get("year"),
+        )
+        self.knowledge_widget = KnowledgeWardrobeWidget(
+            knowledge_directory,
+            parent=self,
+        )
+        self.tabs.addTab(
+            self.knowledge_widget,
+            "Armario y Referencias (Knowledge)",
+        )
+        main_layout.addWidget(self.tabs, 1)
 
         # Los metadatos que definen la carpeta se conservan exclusivamente desde su
         # ubicación real; editar una credencial no cambia el nombre de esa carpeta.

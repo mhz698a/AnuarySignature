@@ -49,7 +49,21 @@ class RenderEngine:
         # 4.1. Instanciar SuperDomainItems
         for sd, geom in layout_data["superdomains"].items():
             x, y, w, h = geom
-            sd_item = SuperDomainItem(x, y, w, h, sd.title)
+            sd_item = SuperDomainItem(
+                x,
+                y,
+                w,
+                h,
+                sd.title,
+                superdomain_name=sd.name,
+                superdomain_id=sd.super_id,
+                infrastructure_path=domains_path,
+                superdomain_years=sorted({
+                    year.value
+                    for domain in sd.domains
+                    for year in domain.years
+                }),
+            )
             scene.addItem(sd_item)
 
         # 4.2. Instanciar DomainItems resolviendo sus colores con ColorResolver
@@ -66,7 +80,8 @@ class RenderEngine:
                 background_color=bg_color,
                 border_color=border_color,
                 domain_id=domain.id,
-                infrastructure_path=domains_path
+                infrastructure_path=domains_path,
+                domain_years=[year.value for year in domain.years],
             )
             scene.addItem(dom_item)
             domain_items_map[domain] = dom_item

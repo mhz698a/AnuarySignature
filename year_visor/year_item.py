@@ -147,8 +147,13 @@ class YearItem(QGraphicsItem):
             # Decidir si aplicamos validación de fecha según si la carpeta del año existe
             # Y si el archivo de credenciales ya existe
             
-            temp_dialog = YearDialog(self._year_value, parent_window, base_path=char_mgr.base_path)
-            json_exists = temp_dialog.json_filepath.exists()
+            year_prefix = f"{max(0, self._year_value - 2003):02d}"
+            year_credential = (
+                year_path
+                / f"{year_prefix}. identity"
+                / f"The_ID_Year_{self._year_value}.json"
+            )
+            json_exists = year_credential.is_file()
 
             if year_path.exists():
                 # Si la carpeta del año existe:
@@ -197,7 +202,11 @@ class YearItem(QGraphicsItem):
                     else:
                         self.update()
             else:
-                dialog = YearDialog(self._year_value, parent_window)
+                dialog = YearDialog(
+                    self._year_value,
+                    parent_window,
+                    base_path=char_mgr.base_path,
+                )
                 if parent_window is not None:
                     
                     if getattr(parent_window, "galleryanuary_requested", None) is not None:

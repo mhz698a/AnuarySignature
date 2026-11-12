@@ -14,17 +14,13 @@ from engines.instance_mutex import SingleInstanceMutex
 from engines.runtime_config import application_settings, get_dependent_path # type: ignore
 from engines.scene_view import VasculumApp
 from engines.system_tray import SystemTrayController
+from signwrite.service import KnowledgeEtudeService
 from domain_visor.theme import Theme
 
+from const import APP_NAME, APP_DIR, ICON_WIN, JSON_DOMAINS, CONTAINER_DOMAINS, MYAPPID
 
-APP_DIR = Path(__file__).resolve().parent
-ICON_WIN = APP_DIR / "assets" / "directorio.ico"
-JSON_DOMAINS = APP_DIR / "__structure__" / "infrastructure.json"
-CONTAINER_DOMAINS = APP_DIR / "__structure__" / "container.json"
-
-myappid = "etudetools.year_struct.render_domains.1.0"
 try:
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(MYAPPID)
 except Exception:
     pass
 
@@ -124,6 +120,23 @@ def main():
 
         # La bandeja existe antes de comenzar el proceso de carga.
         tray_controller = SystemTrayController(str(ICON_WIN), parent=app)
+        note_service = KnowledgeEtudeService(
+            dependent_path,
+            tray_controller,
+            parent=app,
+        )
+        app.knowledge_etude_service = note_service
+
+        tray_controller.write_note_requested.connect(note_service.open_note)
+        tray_controller.paste_note_requested.connect(
+            lambda: note_service.open_note(paste=True)
+        )
+        tray_controller.open_last_note_folder_requested.connect(
+            note_service.open_last_folder
+        )
+        tray_controller.open_last_note_requested.connect(
+            note_service.open_last_note
+        )
         tray_controller.show_window_requested.connect(window.show_domain_viewer)
         tray_controller.restart_requested.connect(window.restart_service)
         tray_controller.exit_requested.connect(window.exit_from_tray)

@@ -8,10 +8,15 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon,
 )
 
+from const import APP_NAME
 
 class SystemTrayController(QObject):
-    """System tray UI decoupled from the Domain Viewer main window."""
+    """System tray UI decoupled from the DomainViewer main window."""
 
+    write_note_requested = pyqtSignal()
+    paste_note_requested = pyqtSignal()
+    open_last_note_folder_requested = pyqtSignal()
+    open_last_note_requested = pyqtSignal()
     show_window_requested = pyqtSignal()
     restart_requested = pyqtSignal()
     exit_requested = pyqtSignal()
@@ -21,7 +26,11 @@ class SystemTrayController(QObject):
 
         self.available = QSystemTrayIcon.isSystemTrayAvailable()
         self.tray_icon = QSystemTrayIcon(QIcon(str(icon_path)), self)
-        self.tray_icon.setToolTip("Domain Viewer")
+        self.tray_icon.setToolTip(
+            APP_NAME + "\n"
+            "Infraestructura de años, dominios y superdominios\n"
+            "Contenedor de Anuarios del Regimen Sobrescritor"
+        )
 
         self.menu = QMenu()
         self.menu.setStyleSheet("""
@@ -39,11 +48,33 @@ class SystemTrayController(QObject):
                 background-color: #2d2d2d;
             }
         """)
-
-        self.show_action = self.menu.addAction("Show Domain Viewer")
+        
+        self.show_action = self.menu.addAction(f"Show {APP_NAME}")
         self.show_action.triggered.connect(self._request_show_window)
+        
+        self.menu.addSeparator()
+
+        self.write_note_action = self.menu.addAction("Write a Note")
+        self.write_note_action.triggered.connect(
+            lambda *_: self.write_note_requested.emit()
+        )
+        self.paste_note_action = self.menu.addAction("Paste and Write Note")
+        self.paste_note_action.triggered.connect(
+            lambda *_: self.paste_note_requested.emit()
+        )
+        self.open_last_note_folder_action = self.menu.addAction(
+            "Open folder of Last Note"
+        )
+        self.open_last_note_folder_action.triggered.connect(
+            lambda *_: self.open_last_note_folder_requested.emit()
+        )
+        self.open_last_note_action = self.menu.addAction("Open The Last Note")
+        self.open_last_note_action.triggered.connect(
+            lambda *_: self.open_last_note_requested.emit()
+        )
 
         self.menu.addSeparator()
+        
         self.restart_action = self.menu.addAction("Restart Service")
         self.restart_action.triggered.connect(self._request_restart)
 
@@ -67,6 +98,14 @@ class SystemTrayController(QObject):
         if self.available:
             self.tray_icon.show()
 
+    def show_message(self, title, message):
+        """Display a notification through DomainViewer's existing tray icon."""
+        self.tray_icon.showMessage(
+            str(title),
+            str(message),
+            QSystemTrayIcon.MessageIcon.Information,
+        )
+
     def _request_show_window(self):
         self.show_window_requested.emit()
 
@@ -83,7 +122,7 @@ class SystemTrayController(QObject):
     def _confirm_exit(self):
         dialog = QMessageBox()
         dialog.setIcon(QMessageBox.Icon.Question)
-        dialog.setWindowTitle("Exit Domain Viewer")
+        dialog.setWindowTitle(f"Exit {APP_NAME}")
         dialog.setText("¿Desea salir de este programa?")
 
         exit_button = dialog.addButton(

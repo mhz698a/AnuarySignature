@@ -6,7 +6,6 @@ __docs__/
 .vscode/
 *.bat
 *.tmp
-__structure__/
 __sandbox__/
 
 # === Entornos Virtuales ===
