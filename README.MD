@@ -1,4 +1,4 @@
-# AnuarySignature
+# 📘 AnuarySignature
 
 A Python application for viewing and analyzing domain information and create notes for her.
 
