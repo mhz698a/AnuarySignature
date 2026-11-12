@@ -1,6 +1,6 @@
-# DomainViewer
+# AnuarySignature
 
-A Python application for viewing and analyzing domain information.
+A Python application for viewing and analyzing domain information and create notes for her.
 
 ## Features
 
