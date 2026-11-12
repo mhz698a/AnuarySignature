@@ -14,6 +14,7 @@ from engines.instance_mutex import SingleInstanceMutex
 from engines.runtime_config import application_settings, get_dependent_path # type: ignore
 from engines.scene_view import VasculumApp
 from engines.system_tray import SystemTrayController
+from signwrite.service import KnowledgeEtudeService
 from domain_visor.theme import Theme
 
 
@@ -124,6 +125,23 @@ def main():
 
         # La bandeja existe antes de comenzar el proceso de carga.
         tray_controller = SystemTrayController(str(ICON_WIN), parent=app)
+        note_service = KnowledgeEtudeService(
+            dependent_path,
+            tray_controller,
+            parent=app,
+        )
+        app.knowledge_etude_service = note_service
+
+        tray_controller.write_note_requested.connect(note_service.open_note)
+        tray_controller.paste_note_requested.connect(
+            lambda: note_service.open_note(paste=True)
+        )
+        tray_controller.open_last_note_folder_requested.connect(
+            note_service.open_last_folder
+        )
+        tray_controller.open_last_note_requested.connect(
+            note_service.open_last_note
+        )
         tray_controller.show_window_requested.connect(window.show_domain_viewer)
         tray_controller.restart_requested.connect(window.restart_service)
         tray_controller.exit_requested.connect(window.exit_from_tray)

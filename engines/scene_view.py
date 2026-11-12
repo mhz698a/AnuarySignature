@@ -368,6 +368,10 @@ class VasculumApp(QMainWindow):
         )
 
         tools_menu = self.menu_bar.addMenu("Herramientas")
+        self.write_note_action = tools_menu.addAction("Escribir una nota")
+        self.write_note_action.triggered.connect(
+            lambda *_: self.open_knowledge_note()
+        )
         self.verbose_resolve_action = tools_menu.addAction(
             "Gestionar resoluciones verbosas"
         )
@@ -465,6 +469,10 @@ class VasculumApp(QMainWindow):
         self.dependent_path = path
         self.settings.setValue("dependent_container_path", str(path))
         self.character_manager.base_path = path
+        from signwrite.service import KnowledgeEtudeService
+        note_service = KnowledgeEtudeService.instance()
+        if note_service is not None:
+            note_service.set_base_path(path)
         self.show_status_message(
             f"Carpeta dependiente guardada: {path}", 5000
         )
@@ -711,6 +719,11 @@ class VasculumApp(QMainWindow):
     def show_about_dialog(self):
         dlg = AboutDialog(parent=self)
         dlg.exec()
+
+    def open_knowledge_note(self):
+        """Open the non-modal SingEtude note editor."""
+        from signwrite.service import request_knowledge_note
+        request_knowledge_note(parent=self)
 
     def restore_editor_visible_state(self):
         editor_visible_setting = self.settings.value("json_editor_visible")

@@ -464,6 +464,16 @@ class KnowledgeWardrobeWidget(QWidget):
         self.reload_action.triggered.connect(self.reload)
         self.toolbar.addAction(self.reload_action)
 
+        self.write_note_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
+            "Escribir una nota",
+            self,
+        )
+        self.write_note_action.triggered.connect(
+            lambda *_: self._write_knowledge_note()
+        )
+        self.toolbar.addAction(self.write_note_action)
+
         self.import_action = QAction("Importar Archivo", self)
         self.import_action.triggered.connect(self.import_files)
         self.toolbar.addAction(self.import_action)
@@ -974,3 +984,19 @@ class KnowledgeWardrobeWidget(QWidget):
             )
         else:
             self._update_action_states()
+
+
+    def _knowledge_year(self):
+        """Infer the year represented by this Knowledge grid, when available."""
+        candidates = [self.knowledge_directory, *self.source_directories]
+        for source in candidates:
+            for candidate in (source, *source.parents):
+                name = candidate.name
+                if len(name) == 4 and name.isdigit():
+                    return int(name)
+        return None
+
+    def _write_knowledge_note(self):
+        """Open SingEtude without blocking the current Knowledge dialog."""
+        from signwrite.service import request_knowledge_note
+        request_knowledge_note(parent=self, year=self._knowledge_year())
