@@ -29,6 +29,9 @@ class LayoutEngine:
 
         # Constantes de YearItem
         self.year_base_height = 15.0
+        self.year_character_row_top_gap = 4.0
+        self.year_character_row_height = 20.0
+        self.year_character_bottom_padding = 6.0
         self.year_top_padding = 8.0
         self.year_spacing = 4.0
         self.year_margin_sides = 8.0
@@ -39,13 +42,18 @@ class LayoutEngine:
     def get_year_height(self, year_value: int) -> float:
         """
         Calcula la altura dinámica del año.
-        Si tiene perfiles/personajes detectados, la altura se incrementa dinámicamente
-        para dar espacio a la nueva fila de personajes (15px año + 4px separación + 20px perfiles = 39.0px).
+        Si tiene perfiles/personajes, reserva el alto de la fila de iconos y un margen
+        inferior de 6px respecto al borde que delimita el año.
         Si no, conserva el tamaño base de 15.0px.
         """
         characters = self.char_manager.get_characters_for_year(year_value)
         if characters:
-            return 39.0
+            return (
+                self.year_base_height
+                + self.year_character_row_top_gap
+                + self.year_character_row_height
+                + self.year_character_bottom_padding
+            )
         return self.year_base_height
 
     def _get_spacing_after_domain(self, domain_upper, domain_lower, connections):

@@ -5,7 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_NAME = "DomainViewer"
+APP_NAME = "AnuarySignature"
 ORG_NAME = "EtudeProduts"
 
 # Reuse DomainViewer's icon for every integrated window and dialog.

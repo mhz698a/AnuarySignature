@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QSettings, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from .const import APP_NAME, ORG_NAME
+from .const import APP_NAME, ORG_NAME, ICON_PATH
 from .signature_wm import KnowledgeEtudeWindow
 
 
@@ -23,8 +23,17 @@ class KnowledgeEtudeService(QObject):
         self.base_path = Path(base_path).expanduser()
         self.tray_controller = tray_controller
         self.settings = QSettings(ORG_NAME, APP_NAME)
+        self._migrate_legacy_settings()
         self.window = None
         type(self)._instance = self
+
+    def _migrate_legacy_settings(self):
+        """Preserve note-editor preferences written under the previous app name."""
+        legacy_settings = QSettings(ORG_NAME, "DomainViewer")
+        for key in legacy_settings.allKeys():
+            if not self.settings.contains(key):
+                self.settings.setValue(key, legacy_settings.value(key))
+        self.settings.sync()
 
     @classmethod
     def instance(cls):
@@ -36,6 +45,40 @@ class KnowledgeEtudeService(QObject):
         if self.window is not None:
             self.window.base_dir = os.fspath(self.base_path)
             self.window.populate_character_combo()
+
+    def open_contacts_manager(self, parent=None):
+        """Open the contacts manager without creating the note editor window."""
+        from .signature_dlg import ContactsManagerDialog
+
+        editor = self.window
+        dialog = ContactsManagerDialog(parent)
+        dialog.setWindowIcon(QIcon(ICON_PATH))
+        if editor is not None:
+            dialog.contacts_updated.connect(
+                lambda: editor.populate_contact_combos(preserve_selection=True)
+            )
+
+        result = dialog.exec()
+        if editor is not None:
+            editor.populate_contact_combos(preserve_selection=True)
+        return result
+
+    def open_classifications_manager(self, parent=None):
+        """Open the note classifications manager without creating the editor."""
+        from .signature_dlg import ClassificationsManagerDialog
+
+        editor = self.window
+        dialog = ClassificationsManagerDialog(parent)
+        dialog.setWindowIcon(QIcon(ICON_PATH))
+        if editor is not None:
+            dialog.classifications_updated.connect(
+                lambda: editor.populate_class_combo(preserve_selection=True)
+            )
+
+        result = dialog.exec()
+        if editor is not None:
+            editor.populate_class_combo(preserve_selection=True)
+        return result
 
     def open_note(self, paste=False, year=None):
         """Show or restore the shared note editor without entering a modal loop."""

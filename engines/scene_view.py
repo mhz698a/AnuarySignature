@@ -15,7 +15,6 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
 
 from const import APP_NAME
 from domain_visor.theme import Theme
-from engines.autostart import is_startup_enabled, set_startup_enabled
 from domain_visor.dependent_path_dialog import DependentPathDialog
 from engines.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
 from engines.render_engine import RenderEngine
@@ -353,8 +352,20 @@ class VasculumApp(QMainWindow):
         self.regen_cache_action.triggered.connect(self.confirm_and_regenerate_cache)
 
         settings_menu = self.menu_bar.addMenu("Ajustes")
-        self.startup_action = settings_menu.addAction("Iniciar al inicio")
-        self.startup_action.triggered.connect(self.manage_startup)
+        self.manage_contacts_action = settings_menu.addAction(
+            "Gestionar Contactos"
+        )
+        self.manage_contacts_action.triggered.connect(
+            lambda *_: self.open_note_contacts_manager()
+        )
+
+        self.manage_note_classifications_action = settings_menu.addAction(
+            "Gestionar Clasificación de Notas"
+        )
+        self.manage_note_classifications_action.triggered.connect(
+            lambda *_: self.open_note_classifications_manager()
+        )
+        settings_menu.addSeparator()
 
         self.dependent_path_action = settings_menu.addAction(
             "Agregar unidad dependientes"
@@ -403,53 +414,6 @@ class VasculumApp(QMainWindow):
         self._startup_complete = True
         self.trigger_render()
         # El visor permanece oculto; el usuario puede mostrarlo desde la bandeja.
-
-    def manage_startup(self):
-        """Muestra el estado del inicio automático y permite activarlo o desactivarlo."""
-        active = is_startup_enabled()
-        status_text = (
-            "El inicio automático está ACTIVADO para este usuario de Windows."
-            if active
-            else "El inicio automático está DESACTIVADO para este usuario de Windows."
-        )
-
-        dialog = QMessageBox(self)
-        dialog.setIcon(QMessageBox.Icon.Information)
-        dialog.setWindowTitle("Iniciar al inicio")
-        dialog.setText(status_text)
-        activate_button = dialog.addButton(
-            "Activar", QMessageBox.ButtonRole.ActionRole
-        )
-        deactivate_button = dialog.addButton(
-            "Desactivar", QMessageBox.ButtonRole.ActionRole
-        )
-        cancel_button = dialog.addButton(
-            "Cancelar", QMessageBox.ButtonRole.RejectRole
-        )
-        dialog.setDefaultButton(cancel_button)
-        dialog.exec()
-
-        clicked = dialog.clickedButton()
-        if clicked not in (activate_button, deactivate_button):
-            return
-
-        try:
-            set_startup_enabled(
-                clicked is activate_button,
-                str(Path(sys.argv[0]).expanduser().resolve()),
-            )
-        except OSError as error:
-            QMessageBox.warning(
-                self, "Iniciar al inicio", f"No se pudo cambiar la configuración:\n{error}"
-            )
-            return
-
-        updated_status = (
-            "El inicio automático quedó ACTIVADO."
-            if clicked is activate_button
-            else "El inicio automático quedó DESACTIVADO."
-        )
-        QMessageBox.information(self, "Iniciar al inicio", updated_status)
 
     def configure_dependent_path(self):
         """Permite seleccionar y guardar la carpeta raíz de los datos dependientes."""
@@ -725,6 +689,20 @@ class VasculumApp(QMainWindow):
         """Open the non-modal SingEtude note editor."""
         from signwrite.service import request_knowledge_note
         request_knowledge_note(parent=self)
+
+    def open_note_contacts_manager(self):
+        """Open the shared note contacts manager from Settings."""
+        from signwrite.service import KnowledgeEtudeService
+        service = KnowledgeEtudeService.instance()
+        if service is not None:
+            service.open_contacts_manager(parent=self)
+
+    def open_note_classifications_manager(self):
+        """Open the shared note classifications manager from Settings."""
+        from signwrite.service import KnowledgeEtudeService
+        service = KnowledgeEtudeService.instance()
+        if service is not None:
+            service.open_classifications_manager(parent=self)
 
     def restore_editor_visible_state(self):
         editor_visible_setting = self.settings.value("json_editor_visible")
