@@ -17,15 +17,10 @@ from engines.system_tray import SystemTrayController
 from signwrite.service import KnowledgeEtudeService
 from domain_visor.theme import Theme
 
+from const import APP_NAME, APP_DIR, ICON_WIN, JSON_DOMAINS, CONTAINER_DOMAINS, MYAPPID
 
-APP_DIR = Path(__file__).resolve().parent
-ICON_WIN = APP_DIR / "assets" / "directorio.ico"
-JSON_DOMAINS = APP_DIR / "__structure__" / "infrastructure.json"
-CONTAINER_DOMAINS = APP_DIR / "__structure__" / "container.json"
-
-myappid = "etudetools.year_struct.render_domains.1.0"
 try:
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(MYAPPID)
 except Exception:
     pass
 

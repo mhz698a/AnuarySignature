@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon,
 )
 
-APP_NAME = "DomainViewer"
+from const import APP_NAME
 
 class SystemTrayController(QObject):
     """System tray UI decoupled from the DomainViewer main window."""

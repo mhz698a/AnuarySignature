@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QShortcut, QKeySequence
 
+from const import APP_NAME
 from domain_visor.theme import Theme
 from engines.autostart import is_startup_enabled, set_startup_enabled
 from domain_visor.dependent_path_dialog import DependentPathDialog
@@ -177,7 +178,7 @@ class VasculumApp(QMainWindow):
         self._startup_complete = False
         self._startup_loading_started = False
         self._closing_application = False
-        self.setWindowTitle("Infraestructura de años, dominios y superdominios")
+        self.setWindowTitle(f"{APP_NAME} - Infrastructure Map")
         self.setStyleSheet(f"background-color: {Theme.APP_BACKGROUND}; color: {Theme.TEXT_WHITE};")
         
         self.settings = QSettings("etudetools", "year_struct_vasculum")
