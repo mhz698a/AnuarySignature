@@ -75,6 +75,43 @@ def resolve_knowledge_directory(character_json_path, year=None) -> Path:
     return year_dir / f"{prefix}. knowledge" / character_dir.name
 
 
+def resolve_marker_knowledge_directories(
+    base_path: str | Path,
+    year: int,
+    marker: str,
+) -> tuple[Path, list[Path]]:
+    """Find immediate Knowledge subfolders whose names contain a marker.
+
+    The returned list aggregates all matching directories for one year,
+    such as folders containing "_local" or "_ndomain".
+    """
+    year_number = int(year)
+    prefix = f"{max(0, year_number - 2003):02d}"
+    knowledge_root = (
+        Path(base_path).expanduser()
+        / str(year_number)
+        / f"{prefix}. knowledge"
+    )
+    normalized_marker = str(marker).strip().casefold()
+
+    if not normalized_marker or not knowledge_root.is_dir():
+        return knowledge_root, []
+
+    try:
+        matches = sorted(
+            (
+                entry
+                for entry in knowledge_root.iterdir()
+                if entry.is_dir() and normalized_marker in entry.name.casefold()
+            ),
+            key=lambda entry: entry.name.casefold(),
+        )
+    except OSError:
+        matches = []
+
+    return knowledge_root, matches
+
+
 def _volume_key(path: Path) -> str:
     """Return the volume identifier used to reject cross-drive imports."""
     resolved = Path(path).expanduser().resolve()
@@ -174,21 +211,29 @@ class _ScanSignals(QObject):
 class _DirectoryScanTask(QRunnable):
     """Enumerate files and decode image thumbnails outside the GUI thread."""
 
-    def __init__(self, generation: int, directory: Path):
+    def __init__(self, generation: int, directories: list[Path]):
         super().__init__()
         self.generation = generation
-        self.directory = directory
+        self.directories = [Path(directory) for directory in directories]
         self.signals = _ScanSignals()
 
     def run(self):
         try:
-            if not self.directory.is_dir():
+            existing_directories = [
+                directory for directory in self.directories if directory.is_dir()
+            ]
+            if not existing_directories:
                 self.signals.finished.emit(self.generation, False, "missing")
                 return
 
-            files = sorted(
-                (entry for entry in self.directory.iterdir() if entry.is_file()),
-                key=lambda entry: entry.name.casefold(),
+            files = []
+            for directory in existing_directories:
+                files.extend(
+                    entry for entry in directory.iterdir() if entry.is_file()
+                )
+
+            files.sort(
+                key=lambda entry: (entry.name.casefold(), str(entry.parent).casefold())
             )
             for file_path in files:
                 thumbnail = None
@@ -351,9 +396,25 @@ class FileRenameDialog(QDialog):
 class KnowledgeWardrobeWidget(QWidget):
     """Grid-based file browser for the current character's Knowledge folder."""
 
-    def __init__(self, knowledge_directory: Path, parent=None):
+    def __init__(
+        self,
+        knowledge_directory: Path,
+        parent=None,
+        source_directories: list[Path] | None = None,
+        destination_directory: Path | None = None,
+        missing_folder_label: str = "carpeta correspondiente en Knowledge",
+    ):
         super().__init__(parent)
-        self.knowledge_directory = Path(knowledge_directory)
+        self.knowledge_directory = Path(
+            destination_directory or knowledge_directory
+        )
+        self.source_directories = [
+            Path(directory)
+            for directory in (
+                source_directories or [self.knowledge_directory]
+            )
+        ]
+        self.missing_folder_label = missing_folder_label
         self._scan_generation = 0
         self._operation_generation = 0
         self._scan_task = None
@@ -507,7 +568,7 @@ class KnowledgeWardrobeWidget(QWidget):
         self._update_action_states()
 
         self._set_placeholder("Cargando archivos de Knowledge…")
-        task = _DirectoryScanTask(generation, self.knowledge_directory)
+        task = _DirectoryScanTask(generation, self.source_directories)
         task.signals.file_found.connect(self._on_file_found)
         task.signals.finished.connect(self._on_scan_finished)
         self._scan_task = task
@@ -547,9 +608,10 @@ class KnowledgeWardrobeWidget(QWidget):
 
         if not directory_exists:
             self._set_placeholder(
-                "No se encontró la carpeta correspondiente en Knowledge.\n\n"
-                f"Ruta esperada:\n{self.knowledge_directory}\n\n"
-                "Puedes importar archivos para crear esta ubicación."
+                f"No se encontró la {self.missing_folder_label}.\n\n"
+                "Rutas esperadas:\n"
+                + "\n".join(str(directory) for directory in self.source_directories)
+                + "\n\nPuedes importar archivos para crear esta ubicación."
             )
         elif self.files_list.count() == 0:
             self._set_placeholder("La carpeta Knowledge existe, pero no contiene archivos.")
