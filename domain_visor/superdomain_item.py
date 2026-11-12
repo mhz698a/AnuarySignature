@@ -138,6 +138,10 @@ class SuperDomainItem(QGraphicsItem):
 
         # Dibujar el título centrado horizontalmente en la parte superior con un pequeño margen
         text_rect = QRectF(self._x, self._y + 12.0, self._width, 30.0)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignHCenter, self._title)
+        painter.drawText(
+            text_rect,
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+            self._title,
+        )
 
         painter.restore()
