@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
     QPushButton, QMessageBox, QListWidget, QListWidgetItem, QWidget,
-    QTreeView, QAbstractItemView, QMenu
+    QTreeView, QAbstractItemView, QMenu, QTabWidget
 )
 from PyQt6.QtCore import Qt, QDir, QModelIndex, QUrl, QPoint, pyqtSignal
 from PyQt6.QtGui import QFileSystemModel, QDesktopServices, QAction
@@ -16,6 +16,10 @@ from domain_visor.theme import Theme
 from character_visor.character_manager import CharacterManager
 from year_visor.year_creator import validate_date_constraints
 from year_visor.year_utils import calculate_id_package_default
+from character_visor.knowledge_wardrobe import (
+    KnowledgeWardrobeWidget,
+    resolve_marker_knowledge_directories,
+)
 
 def find_season_name(year: int, base_path: Path) -> str:
     """
@@ -229,12 +233,19 @@ class YearDialog(QDialog):
 
         # Configurar gestor de personajes para obtener la ruta base
         self.char_manager = CharacterManager()
-        self.base_path = Path(base_path) if base_path else self.char_manager.base_path
+        inherited_base_path = getattr(parent, "dependent_path", None)
+        self.base_path = (
+            Path(base_path)
+            if base_path is not None
+            else Path(inherited_base_path)
+            if inherited_base_path is not None
+            else self.char_manager.base_path
+        )
 
         self.setWindowTitle(f"Year Dialog - {self.year_value}")
         self.setModal(True)
-        self.setMinimumWidth(760)
-        self.resize(900, 500)
+        self.setMinimumWidth(1000)
+        self.resize(1180, 720)
 
         # Quitar botón de ayuda
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -376,6 +387,11 @@ class YearDialog(QDialog):
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
 
+        self.tabs = QTabWidget(self)
+        general_page = QWidget(self.tabs)
+        general_layout = QVBoxLayout(general_page)
+        general_layout.setContentsMargins(0, 0, 0, 0)
+
         content_layout = QHBoxLayout()
         content_layout.setSpacing(15)
         fields_layout = QVBoxLayout()
@@ -445,7 +461,33 @@ class YearDialog(QDialog):
 
         content_layout.addLayout(fields_layout, 2)
         content_layout.addWidget(self._create_year_folder_tree(), 1)
-        main_layout.addLayout(content_layout)
+        general_layout.addLayout(content_layout)
+        self.tabs.addTab(general_page, "General")
+
+        knowledge_root, local_directories = resolve_marker_knowledge_directories(
+            self.base_path,
+            self.year_value,
+            "_local",
+        )
+        local_destination = (
+            local_directories[0]
+            if local_directories
+            else knowledge_root / f"{self.prefix}. _local"
+        )
+        self.knowledge_widget = KnowledgeWardrobeWidget(
+            local_destination,
+            parent=self,
+            source_directories=(
+                local_directories if local_directories else [local_destination]
+            ),
+            destination_directory=local_destination,
+            missing_folder_label="carpeta de Knowledge que contiene '_local'",
+        )
+        self.tabs.addTab(
+            self.knowledge_widget,
+            "Armario y Referencias (Knowledge)",
+        )
+        main_layout.addWidget(self.tabs, 1)
 
         # Footer Buttons
         footer_layout = QHBoxLayout()
