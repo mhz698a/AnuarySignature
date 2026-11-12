@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 APP_NAME = "DomainViewer"
 
 class SystemTrayController(QObject):
-    """System tray UI decoupled from the Domain Viewer main window."""
+    """System tray UI decoupled from the DomainViewer main window."""
 
     write_note_requested = pyqtSignal()
     paste_note_requested = pyqtSignal()
@@ -48,6 +48,11 @@ class SystemTrayController(QObject):
                 background-color: #2d2d2d;
             }
         """)
+        
+        self.show_action = self.menu.addAction(f"Show {APP_NAME}")
+        self.show_action.triggered.connect(self._request_show_window)
+        
+        self.menu.addSeparator()
 
         self.write_note_action = self.menu.addAction("Write a Note")
         self.write_note_action.triggered.connect(
@@ -69,10 +74,7 @@ class SystemTrayController(QObject):
         )
 
         self.menu.addSeparator()
-        self.show_action = self.menu.addAction("Show Domain Viewer")
-        self.show_action.triggered.connect(self._request_show_window)
-
-        self.menu.addSeparator()
+        
         self.restart_action = self.menu.addAction("Restart Service")
         self.restart_action.triggered.connect(self._request_restart)
 
@@ -120,7 +122,7 @@ class SystemTrayController(QObject):
     def _confirm_exit(self):
         dialog = QMessageBox()
         dialog.setIcon(QMessageBox.Icon.Question)
-        dialog.setWindowTitle("Exit Domain Viewer")
+        dialog.setWindowTitle(f"Exit {APP_NAME}")
         dialog.setText("¿Desea salir de este programa?")
 
         exit_button = dialog.addButton(
