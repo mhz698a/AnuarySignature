@@ -47,7 +47,7 @@ class CharacterEditDialog(QDialog):
         self._raw_data_staged = False
 
         self.setWindowTitle("Gestionar Personaje")
-        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setMinimumWidth(1000)
         self.resize(1060, 700)
 

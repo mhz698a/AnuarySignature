@@ -48,7 +48,7 @@ class SuperDomainManagementDialog(QDialog):
         self.saved = False
 
         self.setWindowTitle("Gestionar Superdominio")
-        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setMinimumSize(980, 680)
         self.resize(1120, 760)
         self.setWindowFlags(

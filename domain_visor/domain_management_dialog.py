@@ -49,7 +49,7 @@ class DomainManagementDialog(QDialog):
         self.saved = False
 
         self.setWindowTitle("Gestionar Dominio")
-        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setMinimumSize(900, 600)
         self.resize(900, 600)
         self.setWindowFlags(

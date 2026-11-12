@@ -50,3 +50,34 @@ def test_integrated_note_writer_uses_anuary_signature_name():
 
 def test_domainviewer_autostart_helper_is_removed():
     assert not (Path(PROJECT_ROOT) / "engines" / "autostart.py").exists()
+
+
+def test_knowledge_management_dialogs_are_window_modal():
+    """Keep the shared note editor usable while Knowledge dialogs are open."""
+    import ast
+
+    dialog_specs = (
+        ("domain_visor/domain_management_dialog.py", "DomainManagementDialog"),
+        ("domain_visor/superdomain_rename_dialog.py", "SuperDomainManagementDialog"),
+        ("year_visor/year_dialog.py", "YearDialog"),
+        ("character_visor/character_dialog.py", "CharacterEditDialog"),
+    )
+
+    for relative_path, class_name in dialog_specs:
+        source_path = Path(PROJECT_ROOT) / relative_path
+        module = ast.parse(source_path.read_text(encoding="utf-8"))
+        dialog_class = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.ClassDef) and node.name == class_name
+        )
+        uses_window_modality = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "setWindowModality"
+            and node.args
+            and ast.unparse(node.args[0]) == "Qt.WindowModality.WindowModal"
+            for node in ast.walk(dialog_class)
+        )
+
+        assert uses_window_modality, f"{class_name} debe usar Qt.WindowModal"

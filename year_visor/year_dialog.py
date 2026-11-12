@@ -243,7 +243,7 @@ class YearDialog(QDialog):
         self.char_manager = CharacterManager(base_path=self.base_path)
 
         self.setWindowTitle(f"Year Dialog - {self.year_value}")
-        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setMinimumWidth(1000)
         self.resize(1180, 720)
 
