@@ -231,16 +231,16 @@ class YearDialog(QDialog):
         self.year_value = year_value
         self.saved = False
 
-        # Configurar gestor de personajes para obtener la ruta base
-        self.char_manager = CharacterManager()
+        # Heredar la carpeta dependiente configurada en la ventana principal.
         inherited_base_path = getattr(parent, "dependent_path", None)
         self.base_path = (
             Path(base_path)
             if base_path is not None
             else Path(inherited_base_path)
             if inherited_base_path is not None
-            else self.char_manager.base_path
+            else CharacterManager().base_path
         )
+        self.char_manager = CharacterManager(base_path=self.base_path)
 
         self.setWindowTitle(f"Year Dialog - {self.year_value}")
         self.setModal(True)
