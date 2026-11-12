@@ -115,7 +115,8 @@ class DomainItem(QGraphicsItem):
             years=self._domain_years,
             parent=parent_widget,
         )
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.saved:
+        dialog.exec()
+        if dialog.saved:
             if parent_widget is not None:
                 if callable(getattr(parent_widget, "load_initial_json", None)):
                     parent_widget.load_initial_json()
