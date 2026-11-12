@@ -80,5 +80,41 @@ class KnowledgeDirectoryResolutionTests(unittest.TestCase):
             )
             self.assertEqual(matching, [])
 
+
+    def test_resolves_every_nglobal_folder_for_a_superdomain_year(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            year_dir = Path(temporary_directory) / "2026"
+            knowledge_root = year_dir / "23. knowledge"
+            first = knowledge_root / "23. _nglobal"
+            second = knowledge_root / "notes_nglobal_archive"
+            ignored = knowledge_root / "23. _ndomain"
+            first.mkdir(parents=True)
+            second.mkdir()
+            ignored.mkdir()
+
+            root, matching = resolve_marker_knowledge_directories(
+                Path(temporary_directory),
+                2026,
+                "_nglobal",
+            )
+
+            self.assertEqual(root, knowledge_root)
+            self.assertEqual(matching, [first, second])
+
+    def test_nglobal_fallback_uses_the_year_prefix_folder_name(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root, matching = resolve_marker_knowledge_directories(
+                Path(temporary_directory),
+                2026,
+                "_nglobal",
+            )
+
+            prefix = f"{2026 - 2003:02d}"
+            expected_destination = root / f"{prefix}. _nglobal"
+
+            self.assertEqual(matching, [])
+            self.assertEqual(expected_destination.name, "23. _nglobal")
+
+
 if __name__ == "__main__":
     unittest.main()

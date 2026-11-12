@@ -5,7 +5,7 @@ from PyQt6.QtGui import QFont, QFontMetrics, QPen, QBrush, QColor, QPainter
 from PyQt6.QtWidgets import QDialog, QGraphicsItem
 
 from domain_visor.theme import Theme
-from domain_visor.superdomain_rename_dialog import SuperDomainRenameDialog
+from domain_visor.superdomain_rename_dialog import SuperDomainManagementDialog
 
 class SuperDomainItem(QGraphicsItem):
     """
@@ -26,6 +26,7 @@ class SuperDomainItem(QGraphicsItem):
         superdomain_name=None,
         superdomain_id: int = 0,
         infrastructure_path=None,
+        superdomain_years: list[int] | tuple[int, ...] = (),
     ):
         super().__init__()
         self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
@@ -37,6 +38,9 @@ class SuperDomainItem(QGraphicsItem):
         self._superdomain_name = str(superdomain_name or title)
         self._superdomain_id = superdomain_id
         self._infrastructure_path = infrastructure_path
+        self._superdomain_years = sorted(
+            {int(year) for year in superdomain_years}
+        )
         self._hovered_title = False
         self.setAcceptHoverEvents(True)
 
@@ -94,18 +98,28 @@ class SuperDomainItem(QGraphicsItem):
         ):
             infrastructure_path = parent_window.json_path
 
-        dialog = SuperDomainRenameDialog(
+        base_path = (
+            getattr(parent_window, "dependent_path", None)
+            if parent_window is not None
+            else None
+        )
+        if base_path is None:
+            base_path = Path("E:/_Internal")
+
+        dialog = SuperDomainManagementDialog(
             self._superdomain_id,
             self._superdomain_name,
             infrastructure_path,
+            base_path,
+            self._superdomain_years,
             parent=parent_window,
         )
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.saved:
-            if parent_window is not None:
-                if callable(getattr(parent_window, "load_initial_json", None)):
-                    parent_window.load_initial_json()
-                if callable(getattr(parent_window, "trigger_render", None)):
-                    parent_window.trigger_render()
+        dialog.exec()
+        if dialog.saved and parent_window is not None:
+            if callable(getattr(parent_window, "load_initial_json", None)):
+                parent_window.load_initial_json()
+            if callable(getattr(parent_window, "trigger_render", None)):
+                parent_window.trigger_render()
 
     def paint(self, painter, option, widget=None):
         painter.save()

@@ -58,6 +58,11 @@ class RenderEngine:
                 superdomain_name=sd.name,
                 superdomain_id=sd.super_id,
                 infrastructure_path=domains_path,
+                superdomain_years=sorted({
+                    year.value
+                    for domain in sd.domains
+                    for year in domain.years
+                }),
             )
             scene.addItem(sd_item)
 
