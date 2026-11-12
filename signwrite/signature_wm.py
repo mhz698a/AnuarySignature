@@ -6,7 +6,7 @@ from pathlib import Path
 from .const import (
     APP_NAME, DEST_BASIC, BASE_DIR, PROJECT_ROOT, ICON_PATH,
     DEST_FOLDER, FORMATS, OTHER_OPTION,
-    CONTACT_FIELDS, ROL_APP
+    CONTACT_FIELDS
 )
 
 from PyQt6.QtWidgets import (
@@ -35,7 +35,7 @@ class KnowledgeEtudeWindow(QWidget):
         self.tray = tray
         self.base_dir = os.fspath(base_dir if base_dir is not None else BASE_DIR)
         self.setWindowIcon(QIcon(ICON_PATH))
-        self.setWindowTitle(f"{APP_NAME} - {ROL_APP}")
+        self.setWindowTitle(f"Escribe una nota")
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowMinimizeButtonHint

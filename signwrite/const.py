@@ -5,10 +5,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_NAME = "SignEtude"
+APP_NAME = "DomainViewer"
 ORG_NAME = "EtudeProduts"
-ROL_APP = "Redactor Judicial del Regimen Sobrescritor"
-ROL_APP_EN = "Judicial Redactor of The Overwrite Regime"
 
 # Reuse DomainViewer's icon for every integrated window and dialog.
 ICON_PATH = str(PROJECT_ROOT / "assets" / "directorio.ico")
