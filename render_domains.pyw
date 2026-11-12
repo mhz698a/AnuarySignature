@@ -1,6 +1,6 @@
 # render_domains.pyw
 # first release: 2026-06-23 20:35:00
-# convert to AnuarySignature: ...
+# convert to AnuarySignature: 2026-11-11 22:55:33
 
 from pathlib import Path
 import sys
