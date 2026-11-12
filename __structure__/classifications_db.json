@@ -1,0 +1,62 @@
+[
+  {
+    "label": "Análisis de episodios/peliculas",
+    "code": "analyze-ep",
+    "subfolder": ""
+  },
+  {
+    "label": "Análisis de temporadas",
+    "code": "analyze-se",
+    "subfolder": ""
+  },
+  {
+    "label": "Análisis de personajes",
+    "code": "analyse-ch",
+    "subfolder": "{character_selection}"
+  },
+  {
+    "label": "Análisis globales",
+    "code": "analyze-gl",
+    "subfolder": ""
+  },
+  {
+    "label": "Análisis bíblicos",
+    "code": "analyze-bi",
+    "subfolder": ""
+  },
+  {
+    "label": "Datos interesantes",
+    "code": "light-data",
+    "subfolder": ""
+  },
+  {
+    "label": "Dictamenes",
+    "code": "dictamen-judicial",
+    "subfolder": ""
+  },
+  {
+    "label": "Sucesos y eventos de registro",
+    "code": "event-logg",
+    "subfolder": ""
+  },
+  {
+    "label": "Dedicatorias y reflexiones",
+    "code": "dedic-refl",
+    "subfolder": ""
+  },
+  {
+    "label": "Código de programación",
+    "code": "code-progr",
+    "subfolder": ""
+  },
+  {
+    "label": "Conocimeintos serios",
+    "code": "serialknow",
+    "subfolder": ""
+  },
+  {
+    "label": "Auto de ejecución y Oficio",
+    "code": "ejecucion_judicial",
+    "subfolder": ""
+  }
+]
