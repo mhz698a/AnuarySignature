@@ -1,4 +1,4 @@
-"""Wait for the previous process to exit, then relaunch Domain Viewer."""
+"""Wait for the previous process to exit, then relaunch AnuarySignature."""
 
 import os
 import subprocess
