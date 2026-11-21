@@ -148,8 +148,6 @@ def test_backup_requires_a_git_checkout(tmp_path):
         raise AssertionError("Expected a local Structure checkout validation failure")
 
 
-import json
-
 
 def test_backup_discovery_finds_all_disk_credentials_beyond_ui_cache_limit(tmp_path):
     dependent_root = tmp_path / "dependent"
@@ -181,15 +179,21 @@ def test_backup_discovery_finds_all_disk_credentials_beyond_ui_cache_limit(tmp_p
         dependent_root,
         structure_dir=structure_dir,
     )
-    discovered, failures = service.discover_characters(
-        {"2018": [{"year": 2018, "name": "character_1", "alterego": "cure_1"}]}
-    )
+    cached_subset = {
+        "2018": [{"year": 2018, "name": "character_1", "alterego": "cure_1"}]
+    }
+    discovered, failures = service.discover_characters(cached_subset)
 
     assert len(discovered) == 8
     assert failures == []
     assert {item["name"] for item in discovered} == {
         f"character_{index}" for index in range(1, 9)
     }
+
+    result = service.backup_all(cached_subset)
+    assert result["discovered"] == 8
+    assert result["backed_up"] == 8
+    assert result["failed"] == 0
 
 
 def test_clearing_selected_asset_removes_only_its_archive_copy(tmp_path):
