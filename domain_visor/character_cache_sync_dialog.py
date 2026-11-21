@@ -46,6 +46,8 @@ class CharacterCacheSyncDialog(QDialog):
         self.worker = None
         self.applied = False
         self.apply_result = None
+        self._has_selectable_rows = False
+        self._close_after_worker = False
 
         self.setWindowTitle("Aplicar caché Structure a credenciales locales")
         self.setModal(True)
@@ -154,7 +156,7 @@ class CharacterCacheSyncDialog(QDialog):
 
     def _set_busy(self, busy: bool):
         self.refresh_button.setEnabled(not busy)
-        self.apply_button.setEnabled(not busy)
+        self.apply_button.setEnabled(not busy and self._has_selectable_rows)
         self.close_button.setEnabled(not busy)
         self.table.setEnabled(not busy)
 
@@ -227,6 +229,7 @@ class CharacterCacheSyncDialog(QDialog):
                 )
                 self.table.setItem(row, column, item)
 
+        self._has_selectable_rows = selectable_count > 0
         self.status_label.setText(
             f"Diferencias detectadas: {selectable_count}. "
             f"Registros que requieren revisión: {issue_count}. "
@@ -302,7 +305,7 @@ class CharacterCacheSyncDialog(QDialog):
                 QMessageBox.warning(self, "Aplicación parcial", message)
             else:
                 QMessageBox.information(self, "Cambios aplicados", message)
-            self.accept()
+            self._close_after_worker = True
 
     def _on_failed(self, operation: str, message: str):
         self.status_label.setText(
@@ -320,6 +323,9 @@ class CharacterCacheSyncDialog(QDialog):
             worker.deleteLater()
         self.worker = None
         self._set_busy(False)
+        if self._close_after_worker:
+            self._close_after_worker = False
+            self.accept()
 
     def closeEvent(self, event):
         if self.worker is not None and self.worker.isRunning():
