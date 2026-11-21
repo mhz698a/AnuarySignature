@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -265,8 +267,6 @@ class StructureSyncService:
             cache_info = cache_path.lstat()
         except OSError:
             return None
-        import stat
-
         if (
             not stat.S_ISREG(cache_info.st_mode)
             or stat.S_ISLNK(cache_info.st_mode)
@@ -279,8 +279,6 @@ class StructureSyncService:
         content = cache_path.read_bytes()
         pending_path.parent.mkdir(parents=True, exist_ok=True)
         if pending_path.exists():
-            import stat
-
             try:
                 pending_info = pending_path.lstat()
             except OSError as error:
@@ -304,8 +302,6 @@ class StructureSyncService:
             )
         temporary_path: Path | None = None
         try:
-            import tempfile
-
             with tempfile.NamedTemporaryFile(
                 mode="wb",
                 prefix=".characters_cache.",
