@@ -83,15 +83,25 @@ class CharacterCredentialBackupService:
         alterego = _slug(str(character.get("alterego") or name))
         return self.backup_root / str(year) / f"{alterego}--{name}"
 
-    @staticmethod
-    def _resolve_asset(raw_path: str, credential_path: Path) -> Path | None:
+    def _resolve_asset(self, raw_path: str, credential_path: Path) -> Path | None:
         value = str(raw_path or "").strip()
         if not value:
             return None
         candidate = Path(value).expanduser()
         if not candidate.is_absolute():
             candidate = credential_path.parent / candidate
-        return candidate.resolve()
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(credential_path.parent.resolve()):
+                raise CharacterCredentialBackupError(
+                    "La ruta relativa de imagen sale de la carpeta del personaje."
+                )
+        else:
+            resolved = candidate.resolve()
+        if not self._is_plain_file(candidate):
+            raise CharacterCredentialBackupError(
+                "La imagen seleccionada debe ser un archivo regular, no un enlace simbólico."
+            )
+        return resolved
 
     def _copy_asset(
         self,
@@ -200,11 +210,12 @@ class CharacterCredentialBackupService:
                 "El personaje no tiene una ruta de credencial."
             )
 
-        credential_path = Path(credential_value).expanduser().resolve()
-        if not credential_path.is_file():
+        raw_credential_path = Path(credential_value).expanduser()
+        if not self._is_plain_file(raw_credential_path):
             raise CharacterCredentialBackupError(
-                f"No se encontró la credencial: {credential_path}"
+                "La credencial debe ser un archivo JSON regular, no un enlace simbólico."
             )
+        credential_path = raw_credential_path.resolve()
         try:
             credential_relative = credential_path.relative_to(self.dependent_root)
         except ValueError as error:
@@ -361,6 +372,19 @@ class CharacterCredentialBackupService:
             return False
         return stat.S_ISDIR(info.st_mode)
 
+    @staticmethod
+    def _is_plain_file(path: Path) -> bool:
+        """Exclude symlinks and Windows reparse-point files."""
+        try:
+            info = path.lstat()
+        except OSError:
+            return False
+        if stat.S_ISLNK(info.st_mode):
+            return False
+        if getattr(info, "st_file_attributes", 0) & 0x400:
+            return False
+        return stat.S_ISREG(info.st_mode)
+
     def discover_characters(
         self,
         characters_by_year: dict[str, list[dict]] | None = None,
@@ -436,13 +460,13 @@ class CharacterCredentialBackupService:
                 except (TypeError, ValueError):
                     continue
                 expected_json = character_dir / f"__{folder_name_value}__.json"
-                if expected_json.is_file():
+                if self._is_plain_file(expected_json):
                     credential_path = expected_json
                 else:
                     try:
                         candidates = sorted(
                             item for item in character_dir.glob("__*.json")
-                            if item.is_file()
+                            if self._is_plain_file(item)
                         )
                     except OSError as error:
                         failures.append({
