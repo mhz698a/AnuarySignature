@@ -669,6 +669,29 @@ class StructureOrderService:
                 validated = self.validate_order(order)
                 if validated["id"] in state["applied"]:
                     continue
+                shared_result_path = (
+                    self.results_root / f"{validated['id']}.json"
+                )
+                if shared_result_path.is_file():
+                    try:
+                        shared_result = json.loads(
+                            shared_result_path.read_text(encoding="utf-8")
+                        )
+                    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                        shared_result = {}
+                    if shared_result.get("status") == "applied":
+                        continue
+                    orders.append({
+                        "path": order_path,
+                        "order": order,
+                        "validated": None,
+                        "error": (
+                            "Existe un archivo de resultado para esta orden, "
+                            "pero su contenido no confirma status=applied. "
+                            "Revísalo manualmente; no se ejecutará de nuevo."
+                        ),
+                    })
+                    continue
                 orders.append({
                     "path": order_path,
                     "order": order,
