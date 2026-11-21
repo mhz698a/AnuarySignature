@@ -292,3 +292,196 @@ def test_unavailable_dependent_root_preserves_previous_report(tmp_path):
         service.generate_or_update()
 
     assert report_path.read_text(encoding="utf-8") == original
+
+
+def test_report_excludes_resources_local_personal_by_default(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    private_folder = (
+        dependent_root
+        / "2025"
+        / "resources.local.personal"
+        / "nested"
+    )
+    visible_folder = dependent_root / "2025" / "22. public"
+    private_folder.mkdir(parents=True)
+    visible_folder.mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    result = service.generate_or_update()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    reported_paths = {
+        item["relative_path"] for item in payload["directories"]
+    }
+
+    assert "2025" in reported_paths
+    assert "2025\\resources.local.personal" not in reported_paths
+    assert "2025\\resources.local.personal\\nested" not in reported_paths
+    assert "2025\\22. public" in reported_paths
+    assert payload["excluded_directories"] == [
+        "2025/resources.local.personal"
+    ]
+    assert result["excluded_directory_count"] == 1
+
+
+def test_user_can_exclude_a_different_folder_for_one_year(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    album = (
+        dependent_root
+        / "2025"
+        / "22. album"
+        / "22. 01;Example;Character;2000-01-02;25"
+    )
+    visible_folder = dependent_root / "2025" / "22. public" / "visible"
+    album.mkdir(parents=True)
+    visible_folder.mkdir(parents=True)
+    (album / "__Character__.json").write_text("{}", encoding="utf-8")
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    service.save_exclusion_preferences(
+        ["2025/22. album"],
+        [],
+    )
+    service.generate_or_update()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    reported_paths = {
+        item["relative_path"] for item in payload["directories"]
+    }
+
+    assert "2025\\22. album" not in reported_paths
+    assert (
+        "2025\\22. album\\22. 01;Example;Character;2000-01-02;25"
+        not in reported_paths
+    )
+    assert "2025\\22. public" in reported_paths
+    assert "2025\\22. public\\visible" in reported_paths
+    assert payload["character_credentials"] == []
+    assert payload["excluded_directories"] == ["2025/22. album"]
+
+
+def test_user_can_include_resources_local_personal_for_one_year(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    personal_subfolder = (
+        dependent_root
+        / "2025"
+        / "resources.local.personal"
+        / "visible-after-override"
+    )
+    personal_subfolder.mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    service.save_exclusion_preferences(
+        [],
+        ["2025/resources.local.personal"],
+    )
+    service.generate_or_update()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    reported_paths = {
+        item["relative_path"] for item in payload["directories"]
+    }
+
+    assert "2025\\resources.local.personal" in reported_paths
+    assert (
+        "2025\\resources.local.personal\\visible-after-override"
+        in reported_paths
+    )
+    assert payload["excluded_directories"] == []
+
+
+def test_year_folder_options_show_default_and_saved_exclusions(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    (dependent_root / "2025" / "resources.local.personal").mkdir(parents=True)
+    (dependent_root / "2025" / "22. public").mkdir()
+    (dependent_root / "2026" / "26. private").mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    service.save_exclusion_preferences(["2026/26. private"], [])
+    options = service.list_year_directory_options()
+
+    by_year = {
+        year["year"]: {
+            folder["name"]: folder
+            for folder in year["folders"]
+        }
+        for year in options
+    }
+    assert by_year["2025"]["resources.local.personal"]["excluded"] is True
+    assert by_year["2025"]["22. public"]["excluded"] is False
+    assert by_year["2026"]["26. private"]["excluded"] is True
+
+
+def test_report_progress_identifies_years_and_folders(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    character = (
+        dependent_root
+        / "2025"
+        / "22. album"
+        / "22. 01;Example;Character;2000-01-02;25"
+    )
+    character.mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    progress_updates = []
+    service.generate_or_update(
+        progress_callback=lambda completed, total, message: (
+            progress_updates.append((completed, total, message))
+        )
+    )
+
+    active_updates = [
+        update for update in progress_updates
+        if update[1] > 0
+    ]
+    messages = [update[2] for update in active_updates]
+
+    assert any(message == "Año 2025" for message in messages)
+    assert any("2025/22. album" in message for message in messages)
+    assert any("22. 01;Example;Character" in message for message in messages)
+    assert active_updates[-1][0] == active_updates[-1][1]
+    assert all(
+        current <= total
+        for current, total, _message in active_updates
+    )
+
+
+def test_exclusion_preferences_are_preserved_across_service_instances(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    report_path.parent.mkdir(parents=True)
+    first_service = DependentDirectoryReportService(dependent_root, report_path)
+    first_service.save_exclusion_preferences(
+        ["2024/04. archive"],
+        ["2025/resources.local.personal"],
+    )
+
+    second_service = DependentDirectoryReportService(dependent_root, report_path)
+    preferences = second_service.load_exclusion_preferences()
+
+    assert preferences["excluded_directories"] == ["2024/04. archive"]
+    assert preferences["included_directories"] == [
+        "2025/resources.local.personal"
+    ]
