@@ -25,6 +25,7 @@ from domain_visor.progress_dialog import ProgressDialog
 from year_visor.year_item import YearItem
 from domain_visor.about_dialog import AboutDialog
 from domain_visor.verbose_resolve_dialog import VerboseResolveDialog
+from domain_visor.structure_status_monitor import StructureStatusMonitor
 from character_visor.character_row_item import IMAGE_CACHE, PIXMAP_CACHE
 
 class ZoomableGraphicsView(QGraphicsView):
@@ -278,6 +279,27 @@ class VasculumApp(QMainWindow):
         status_bar.addPermanentWidget(zoom_label)
         status_bar.addPermanentWidget(self.zoom_slider)
         status_bar.addPermanentWidget(self.zoom_percentage_label)
+
+        self.structure_status_label = QLabel("STRUCTURE · …", self)
+        self.structure_status_label.setMinimumWidth(150)
+        self.structure_status_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.structure_status_label.setStyleSheet(
+            "color: #bdbdbd; padding-left: 10px; padding-right: 8px;"
+        )
+        self.structure_status_label.setToolTip(
+            "Comprobando el estado local y remoto del repositorio privado Structure."
+        )
+        status_bar.addPermanentWidget(self.structure_status_label)
+
+        self.structure_status_monitor = StructureStatusMonitor(parent=self)
+        self.structure_status_monitor.status_changed.connect(
+            self._update_structure_status_indicator
+        )
+        self._structure_sync_dialog_waiting = False
+        self.structure_status_monitor.start()
+
         status_bar.showMessage("Visor de dominios listo", 3000)
 
         # 4. Crear la escena y asignarla al View
@@ -465,6 +487,7 @@ class VasculumApp(QMainWindow):
         dialog.exec()
         if dialog.report_generated:
             result = dialog.report_result or {}
+            self.structure_status_monitor.refresh_now()
             self.show_status_message(
                 "Reporte de unidad dependiente actualizado: "
                 f"{result.get('directory_count', 0)} directorios.",
@@ -733,14 +756,57 @@ class VasculumApp(QMainWindow):
         if service is not None:
             service.open_classifications_manager(parent=self)
 
+    def _update_structure_status_indicator(
+        self,
+        label: str,
+        tooltip: str,
+        color: str,
+    ):
+        """Update the compact GitHub status indicator beside the zoom controls."""
+        self.structure_status_label.setText(label)
+        self.structure_status_label.setToolTip(tooltip)
+        self.structure_status_label.setStyleSheet(
+            f"color: {color}; padding-left: 10px; padding-right: 8px; "
+            "font-weight: bold;"
+        )
+
     def open_structure_sync_dialog(self):
-        """Open the Structure synchronization and local-backup manager."""
+        """Pause status polling before opening the interactive Git operations."""
+        self.structure_status_monitor.pause()
+        if self.structure_status_monitor.is_busy():
+            if not self._structure_sync_dialog_waiting:
+                self._structure_sync_dialog_waiting = True
+                self.structure_status_monitor.idle.connect(
+                    self._open_structure_sync_dialog_when_idle
+                )
+            self.show_status_message(
+                "Esperando a que termine la comprobación de Structure…",
+                3000,
+            )
+            return
+
+        self._open_structure_sync_dialog_when_idle()
+
+    def _open_structure_sync_dialog_when_idle(self):
+        """Open the sync dialog only after the status fetch releases Git."""
+        if self._structure_sync_dialog_waiting:
+            try:
+                self.structure_status_monitor.idle.disconnect(
+                    self._open_structure_sync_dialog_when_idle
+                )
+            except (TypeError, RuntimeError):
+                pass
+            self._structure_sync_dialog_waiting = False
+
         from domain_visor.structure_sync_dialog import StructureSyncDialog
 
-        dialog = StructureSyncDialog(self)
-        dialog.exec()
-        if dialog.structure_changed:
-            self._reload_structure_after_sync()
+        try:
+            dialog = StructureSyncDialog(self)
+            dialog.exec()
+            if dialog.structure_changed:
+                self._reload_structure_after_sync()
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
 
     def _reload_structure_after_sync(self):
         """Reload infrastructure and character indexes after a download or restore."""
@@ -925,6 +991,12 @@ class VasculumApp(QMainWindow):
 
         self._closing_application = True
         self.settings.setValue("splitter_state", self.splitter.saveState())
+
+        if hasattr(self, "structure_status_monitor"):
+            self.structure_status_monitor.stop()
+            worker = self.structure_status_monitor._worker
+            if worker is not None and worker.isRunning():
+                worker.wait(5000)
 
         if hasattr(self, "progress_dialog") and self.progress_dialog:
             try:
