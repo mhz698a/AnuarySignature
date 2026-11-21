@@ -15,6 +15,11 @@ from PyQt6.QtWidgets import (
 
 from domain_visor.theme import Theme
 from engines.character_credential_backup import CharacterCredentialBackupService
+from engines.dependent_directory_report import (
+    DependentDirectoryReportService,
+    REPORT_FILENAME,
+)
+from engines.structure_paths import get_structure_file
 
 
 class _CharacterBackupWorker(QThread):
@@ -59,11 +64,38 @@ class SingleCharacterBackupWorker(QThread):
         self.character = dict(character)
 
     def run(self):
+        backup_result = None
+        backup_error = None
         try:
             service = CharacterCredentialBackupService(self.dependent_path)
-            self.completed.emit(service.backup_character(self.character))
+            backup_result = service.backup_character(self.character)
         except Exception as error:
-            self.failed.emit(str(error))
+            backup_error = str(error)
+
+        report_error = None
+        try:
+            DependentDirectoryReportService(
+                self.dependent_path,
+                get_structure_file(REPORT_FILENAME),
+            ).generate_or_update()
+        except Exception as error:
+            report_error = str(error)
+
+        if backup_error is not None:
+            message = backup_error
+            if report_error is None:
+                message += "\\nEl reporte de la unidad dependiente sí fue actualizado."
+            else:
+                message += (
+                    "\\nTampoco se pudo actualizar el reporte de la unidad dependiente: "
+                    + report_error
+                )
+            self.failed.emit(message)
+            return
+
+        backup_result["dependent_report_updated"] = report_error is None
+        backup_result["dependent_report_error"] = report_error
+        self.completed.emit(backup_result)
 
 
 class SingleCharacterBackupUiBridge(QObject):
@@ -81,18 +113,28 @@ class SingleCharacterBackupUiBridge(QObject):
             return
 
         warnings = result.get("warnings", [])
-        if warnings:
+        report_error = str(result.get("dependent_report_error") or "")
+        if warnings or report_error:
+            details = []
+            if warnings:
+                details.append("Advertencias de respaldo: " + "; ".join(warnings))
+            if report_error:
+                details.append(
+                    "El reporte de la unidad dependiente no se actualizó: "
+                    + report_error
+                )
             show_status(
-                "Respaldo Structure parcial: "
-                + "; ".join(warnings)
-                + ". Revisa antes de subirlo.",
-                10000,
+                "Respaldo Structure parcial. "
+                + " ".join(details)
+                + " Revisa antes de subirlo.",
+                12000,
             )
         else:
             show_status(
-                "Credencial e imágenes seleccionadas respaldadas "
-                "en Structure. Pulsa Subir cambios para publicarlas.",
-                7000,
+                "Credencial e imágenes seleccionadas respaldadas en Structure. "
+                "El reporte de la unidad dependiente también fue actualizado. "
+                "Pulsa Subir cambios para publicarlos.",
+                9000,
             )
 
     @pyqtSlot(str)
