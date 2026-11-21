@@ -351,6 +351,7 @@ class StructureSyncDialog(QDialog):
             self.current_status = result
             self._previous_branch = result.get("branch", "")
             self._display_status(result)
+            self.structure_changed = True
             self.operation_label.setText(
                 f"Rama de trabajo cambiada a '{self._previous_branch}'."
             )
