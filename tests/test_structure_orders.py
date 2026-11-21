@@ -418,3 +418,29 @@ def test_symlinked_pending_order_files_are_not_loaded(tmp_path):
     assert len(orders) == 1
     assert orders[0]["validated"] is None
     assert "sin enlaces simbólicos" in orders[0]["error"]
+
+
+def test_order_retry_does_not_overwrite_existing_prechange_backup(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    old_bytes = credential.read_bytes()
+    backup_path = (
+        tmp_path / "OrderBackups" / "order-retry-001" / "2018"
+        / "15. album" / "15. 01;cure_machérie;emiru_aisaki;2008-11-30;10"
+        / "__emiru_aisaki__.json"
+    )
+    backup_path.parent.mkdir(parents=True)
+    backup_path.write_bytes(b"previous-original-backup")
+
+    try:
+        service._create_prechange_backup(
+            "order-retry-001",
+            credential,
+            old_bytes,
+        )
+    except StructureOrderError as error:
+        assert "no sobrescribir" in str(error)
+    else:
+        raise AssertionError("Existing pre-change backups must never be overwritten")
+
+    assert backup_path.read_bytes() == b"previous-original-backup"
+    assert credential.read_bytes() == old_bytes
