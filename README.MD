@@ -88,6 +88,26 @@ The report is a local change in the private Structure repository. Use
 **Ajustes → Sincronizar Structure con GitHub → Subir cambios** to publish the
 updated report to the private repository so it can be consulted remotely.
 
+## Phase 6 — Structure status and character colours
+
+The main window status bar shows the private Structure Git state to the right
+of the zoom percentage. It polls in the background every three minutes and
+distinguishes remote commits to pull, local commits to push, uncommitted local
+changes, conflicts, a non-main branch, a clean/synchronized state and connection
+errors. The monitor pauses while the synchronization dialog is active and
+refreshes after it closes. Each background fetch has a 15-second timeout.
+
+Character theme colours use the existing `color_group` and
+`secondary_color` fields. The private Structure repository contains a companion
+source manifest at `__structure__/character_color_references.json`; no
+`fandom` attribute is added to character records. `dorado` is supported as a
+distinct palette value. During character scans, researched Structure colours
+are copied to local character credentials only when those local fields are
+empty; non-empty local values remain authoritative.
+
+The researched cache update is reviewed separately in
+[AnuarySignature-Structure PR #1](https://github.com/mhz698a/AnuarySignature-Structure/pull/1).
+
 ## Installation
 
 1. Clone the repository:
