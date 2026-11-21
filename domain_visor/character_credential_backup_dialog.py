@@ -43,7 +43,7 @@ class _CharacterBackupWorker(QThread):
 
 
 class CharacterCredentialBackupDialog(QDialog):
-    """Back up all cached character credentials and their selected images."""
+    """Back up every discoverable on-disk character credential and its selected images."""
 
     def __init__(
         self,
