@@ -556,11 +556,17 @@ class StructureOrderService:
         current_bytes: bytes,
     ) -> dict[str, str]:
         relative = target_path.resolve().relative_to(self.dependent_root)
-        backup_dir = self.backup_root / order_id / Path(*relative.parts)
-        backup_dir.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_write_bytes(backup_dir, current_bytes)
+        backup_path = self.backup_root / order_id / Path(*relative.parts)
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        if backup_path.exists():
+            raise StructureOrderError(
+                "Ya existe un respaldo previo para esta orden y ruta. "
+                "Se bloqueó el reintento para no sobrescribir el estado anterior; "
+                "revisa el resultado o el intento parcial."
+            )
+        _atomic_write_bytes(backup_path, current_bytes)
         return {
-            "backup_path": str(backup_dir),
+            "backup_path": str(backup_path),
             "sha256": hashlib.sha256(current_bytes).hexdigest(),
             "dependent_relative_path": relative.as_posix(),
         }
