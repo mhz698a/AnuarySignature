@@ -63,7 +63,7 @@ def test_git_authentication_is_added_through_environment_not_arguments(tmp_path)
     ).decode("ascii")
     assert result["GIT_CONFIG_COUNT"] == "3"
     assert result["GIT_CONFIG_KEY_1"] == (
-        "http.https://github.com/mhz698a/AnuarySignature-Structure.git/.extraheader"
+        "http.https://github.com/.extraheader"
     )
     assert result["GIT_CONFIG_VALUE_1"] == f"AUTHORIZATION: basic {expected}"
     assert result["GIT_CONFIG_KEY_2"] == "credential.helper"
