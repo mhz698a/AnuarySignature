@@ -37,6 +37,7 @@ def test_report_contains_only_years_and_two_directory_levels(tmp_path):
     (dependent_root / "misc").mkdir()
     (dependent_root / "2010" / "00. archive").mkdir(parents=True)
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     result = service.generate_or_update()
 
