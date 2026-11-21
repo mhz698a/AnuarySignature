@@ -62,6 +62,32 @@ Git operations run without opening visible Windows console windows. The
 **Subir cambios** action commits local Structure edits and pushes them to
 `main` only when the remote branch has no commits waiting to be downloaded.
 
+## Dependent-drive directory report
+
+AnuarySignature can generate a directory-only inventory of the configured
+dependent drive. The report is stored in the private Structure checkout at:
+
+```text
+__structure__/dependent_directory_report.json
+```
+
+The scanner includes four-digit year directories and at most two directory
+levels below each year. For example, it records `2009`,
+`2009\\06. music`, and `2009\\06. music\\06. s.rt.example`.
+It does not open, inspect, count, or store files. It also skips symbolic links
+and Windows reparse-point directories.
+
+The report is regenerated after AnuarySignature creates a year, creates a
+shared year folder, renames a year folder, or creates a missing identity
+directory while saving a year credential. To rebuild it manually, use
+**Herramientas → Generar/actualizar reporte de la unidad dependiente**.
+The manual scan runs in the background and preserves the previous report if
+the dependent drive cannot be read completely.
+
+The report is a local change in the private Structure repository. Use
+**Ajustes → Sincronizar Structure con GitHub → Subir cambios** to publish the
+updated report to the private repository so it can be consulted remotely.
+
 ## Installation
 
 1. Clone the repository:
