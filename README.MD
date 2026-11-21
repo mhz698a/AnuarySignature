@@ -72,11 +72,19 @@ The report is stored in the private Structure checkout at:
 __structure__/dependent_directory_report.json
 ```
 
-The scanner includes four-digit year directories and at most two directory
-levels below each year. For example, it records `2009`,
+The directory inventory includes four-digit year directories and at most two
+directory levels below each year. For example, it records `2009`,
 `2009\\06. music`, and `2009\\06. music\\06. s.rt.example`.
-It does not open, inspect, count, or store files. It also skips symbolic links
-and Windows reparse-point directories.
+The report also scans each year's `<prefix>. album` folder and recognizes
+character folders using AnuarySignature's existing naming convention. It records
+the character identity, the relative folder path, the credential filename and
+the credential's relative path. Missing credentials are marked as missing;
+multiple `__*.json` candidates are marked as ambiguous rather than selecting
+one arbitrarily.
+
+Credential JSON contents and image files are never opened, copied or embedded
+in this report. Only regular credential filenames and relative paths are
+recorded. Symbolic links and Windows reparse-point files/directories are skipped.
 
 The report is regenerated after AnuarySignature creates a year, creates a
 shared year folder, renames a year folder, or creates a missing identity
