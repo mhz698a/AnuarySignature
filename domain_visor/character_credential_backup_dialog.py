@@ -55,7 +55,7 @@ class CharacterCredentialBackupDialog(QDialog):
         self.dependent_path = Path(dependent_path)
         self.character_cache = character_cache
         self.worker = None
-        self.result = None
+        self.backup_result = None
         self.completed_successfully = False
 
         self.setWindowTitle("Respaldar credenciales de personajes")
@@ -142,7 +142,7 @@ class CharacterCredentialBackupDialog(QDialog):
         self.worker.start()
 
     def _on_completed(self, result: dict):
-        self.result = result
+        self.backup_result = result
         self.completed_successfully = True
         self.status_label.setText(
             "Proceso de respaldo terminado.\n\n"
