@@ -209,6 +209,18 @@ class DependentDirectoryReportService:
         return payload
 
     @classmethod
+    def is_default_excluded_directory_name(cls, folder_name: str) -> bool:
+        """Match default exclusions with or without a numeric folder prefix."""
+        normalized = str(folder_name or "").strip().casefold()
+        for default_name in DEFAULT_EXCLUDED_DIRECTORY_NAMES:
+            if normalized == default_name.casefold():
+                return True
+            prefix, separator, suffix = normalized.partition(". ")
+            if separator and prefix.isdigit() and suffix == default_name.casefold():
+                return True
+        return False
+
+    @classmethod
     def _is_excluded(
         cls,
         relative_path: str,
@@ -220,12 +232,7 @@ class DependentDirectoryReportService:
             return False
         if key in set(preferences.get("excluded_directories", [])):
             return True
-
-        default_names = {
-            str(name).strip().casefold()
-            for name in DEFAULT_EXCLUDED_DIRECTORY_NAMES
-        }
-        return str(folder_name).casefold() in default_names
+        return cls.is_default_excluded_directory_name(folder_name)
 
     def list_year_directory_options(
         self,
