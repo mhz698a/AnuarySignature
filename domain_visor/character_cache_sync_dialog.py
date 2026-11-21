@@ -40,9 +40,15 @@ class _CharacterCacheSyncWorker(QThread):
 class CharacterCacheSyncDialog(QDialog):
     """Show per-field differences and require explicit selection before writing local JSONs."""
 
-    def __init__(self, service: CharacterCacheSyncService, parent=None):
+    def __init__(
+        self,
+        service: CharacterCacheSyncService,
+        parent=None,
+        close_when_empty: bool = False,
+    ):
         super().__init__(parent)
         self.service = service
+        self.close_when_empty = bool(close_when_empty)
         self.worker = None
         self.applied = False
         self.apply_result = None
@@ -329,6 +335,8 @@ class CharacterCacheSyncDialog(QDialog):
                 self.status_label.setText(
                     "No hay diferencias entre el caché de Structure y las credenciales locales."
                 )
+                if self.close_when_empty:
+                    self._close_after_worker = True
         elif operation == "apply":
             self.apply_result = result
             self.applied = result.get("applied_fields", 0) > 0
