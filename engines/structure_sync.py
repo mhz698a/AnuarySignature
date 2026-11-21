@@ -38,7 +38,6 @@ class StructureSyncService:
     """Synchronize the local Structure checkout without discarding local edits."""
 
     REMOTE_NAME = "origin"
-    BRANCH_NAME = "main"
 
     def __init__(
         self,
@@ -157,13 +156,74 @@ class StructureSyncService:
             )
         return remote
 
-    def _ensure_main_branch(self) -> None:
+    def _current_branch(self) -> str:
+        """Return the checked-out branch and reject detached or invalid refs."""
         branch = self._run_git("branch", "--show-current").stdout.strip()
-        if branch != self.BRANCH_NAME:
+        if not branch:
             raise StructureSyncError(
-                f"El checkout está en la rama '{branch or '(detached HEAD)'}'. "
-                f"La sincronización administrada requiere la rama '{self.BRANCH_NAME}'."
+                "El checkout está en detached HEAD. Cambia a una rama antes de sincronizar."
             )
+        checked = self._run_git("check-ref-format", "--branch", branch, check=False)
+        if checked.returncode != 0:
+            raise StructureSyncError("Git devolvió un nombre de rama local no válido.")
+        return branch
+
+    def list_remote_branches(self) -> dict[str, Any]:
+        """List branches available on origin; PR source branches in this repo are included."""
+        self._ensure_repository()
+        self._ensure_expected_remote()
+        self._fetch()
+        output = self._run_git(
+            "for-each-ref",
+            "--format=%(refname:strip=3)",
+            f"refs/remotes/{self.REMOTE_NAME}",
+        ).stdout
+        branches = sorted({
+            line.strip() for line in output.splitlines()
+            if line.strip() and line.strip() != "HEAD"
+        }, key=str.casefold)
+        return {"branches": branches, "current_branch": self._current_branch()}
+
+    def switch_branch(self, branch: str) -> dict[str, Any]:
+        """Switch to an origin branch without stashing or discarding local edits."""
+        self._ensure_repository()
+        self._ensure_expected_remote()
+        branch = str(branch or "").strip()
+        if not branch:
+            raise StructureSyncError("Selecciona una rama remota.")
+        checked = self._run_git("check-ref-format", "--branch", branch, check=False)
+        if checked.returncode != 0:
+            raise StructureSyncError("El nombre de la rama seleccionada no es válido.")
+
+        self._fetch()
+        remote_ref = f"refs/remotes/{self.REMOTE_NAME}/{branch}"
+        if self._run_git("rev-parse", "--verify", remote_ref, check=False).returncode != 0:
+            raise StructureSyncError(
+                f"La rama '{branch}' no existe en el remoto {self.REMOTE_NAME}."
+            )
+
+        changes = self._working_tree_changes()
+        if changes:
+            raise StructureSyncError(
+                "No se puede cambiar de rama porque el checkout tiene cambios locales. "
+                "Primero súbelos o respáldalos y resuélvelos; no se guardarán en stash."
+            )
+
+        if self._current_branch() != branch:
+            local_ref = self._run_git(
+                "show-ref", "--verify", "--quiet", f"refs/heads/{branch}",
+                check=False,
+            )
+            if local_ref.returncode == 0:
+                self._run_git("switch", branch)
+            else:
+                self._run_git(
+                    "switch", "--track", "--create", branch,
+                    f"{self.REMOTE_NAME}/{branch}",
+                )
+
+        self._fetch()
+        return self._inspect_after_fetch()
 
     def _fetch(self, timeout: int = 120) -> None:
         self._run_git("fetch", "--prune", self.REMOTE_NAME, timeout=timeout)
@@ -182,12 +242,13 @@ class StructureSyncService:
                 conflicts.append(line)
         return conflicts
 
-    def _revision_counts(self) -> tuple[int, int]:
+    def _revision_counts(self, branch: str | None = None) -> tuple[int, int]:
+        target_branch = branch or self._current_branch()
         result = self._run_git(
             "rev-list",
             "--left-right",
             "--count",
-            f"HEAD...{self.REMOTE_NAME}/{self.BRANCH_NAME}",
+            f"HEAD...{self.REMOTE_NAME}/{target_branch}",
         )
         values = result.stdout.strip().split()
         if len(values) != 2:
@@ -197,14 +258,18 @@ class StructureSyncService:
         return int(values[0]), int(values[1])
 
     def _inspect_after_fetch(self) -> dict[str, Any]:
+        branch = self._current_branch()
+        remote_ref = f"refs/remotes/{self.REMOTE_NAME}/{branch}"
+        if self._run_git("rev-parse", "--verify", remote_ref, check=False).returncode != 0:
+            raise StructureSyncError(
+                f"La rama local '{branch}' no tiene una rama equivalente en "
+                f"{self.REMOTE_NAME}. Selecciona una rama remota desde el diálogo."
+            )
         changes = self._working_tree_changes()
         conflicts = self._conflicts(changes)
-        ahead, behind = self._revision_counts()
+        ahead, behind = self._revision_counts(branch)
         head = self._run_git("rev-parse", "HEAD").stdout.strip()
-        remote_head = self._run_git(
-            "rev-parse", f"{self.REMOTE_NAME}/{self.BRANCH_NAME}"
-        ).stdout.strip()
-        branch = self._run_git("branch", "--show-current").stdout.strip()
+        remote_head = self._run_git("rev-parse", remote_ref).stdout.strip()
         return {
             "branch": branch,
             "head": head,
@@ -230,7 +295,7 @@ class StructureSyncService:
         """Commit local changes and push them only when the remote has not advanced."""
         self._ensure_repository()
         self._ensure_expected_remote()
-        self._ensure_main_branch()
+        self._current_branch()
         self._fetch()
         status = self._inspect_after_fetch()
 
@@ -269,7 +334,10 @@ class StructureSyncService:
                 "status": self._inspect_after_fetch(),
             }
 
-        self._run_git("push", self.REMOTE_NAME, f"HEAD:{self.BRANCH_NAME}", timeout=180)
+        self._run_git(
+            "push", self.REMOTE_NAME,
+            f"HEAD:refs/heads/{status['branch']}", timeout=180,
+        )
         self._fetch()
         return {
             "updated": True,
@@ -281,7 +349,7 @@ class StructureSyncService:
         """Fast-forward from GitHub after a verified local backup."""
         self._ensure_repository()
         self._ensure_expected_remote()
-        self._ensure_main_branch()
+        self._current_branch()
         self._fetch()
         status = self._inspect_after_fetch()
 
@@ -313,7 +381,7 @@ class StructureSyncService:
         self._run_git(
             "merge",
             "--ff-only",
-            f"{self.REMOTE_NAME}/{self.BRANCH_NAME}",
+            f"{self.REMOTE_NAME}/{status['branch']}",
             timeout=120,
         )
         return {
@@ -340,7 +408,7 @@ class StructureSyncService:
         """Restore a selected snapshot, first preserving the current working tree."""
         self._ensure_repository()
         self._ensure_expected_remote()
-        self._ensure_main_branch()
+        self._current_branch()
         current_head = self._run_git("rev-parse", "HEAD").stdout.strip()
         restore_result = self.backups.restore_backup(
             backup_path,
