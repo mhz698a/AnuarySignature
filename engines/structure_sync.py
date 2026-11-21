@@ -52,7 +52,7 @@ class StructureSyncService:
         if os.name == "nt":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
+            startupinfo.wShowWindow = 0
             process_options = {
                 "creationflags": subprocess.CREATE_NO_WINDOW,
                 "startupinfo": startupinfo,
