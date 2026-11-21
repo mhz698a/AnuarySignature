@@ -68,36 +68,37 @@ AnuarySignature can generate an inventory of the configured dependent drive,
 including directory structure and references to character credential files.
 The report is stored in the private Structure checkout at:
 
-```text
+\`\`\`text
 __structure__/dependent_directory_report.json
-```
+\`\`\`
 
 The directory inventory includes four-digit year directories and at most two
-directory levels below each year. For example, it records `2009`,
-`2009\\06. music`, and `2009\\06. music\\06. s.rt.example`.
-The report also scans each year's `album` folder identified by the year prefix and recognizes
-character folders using AnuarySignature's existing naming convention. It records
-the character identity, the relative folder path, the credential filename and
-the credential's relative path. Missing credentials are marked as missing;
-multiple `__*.json` candidates are marked as ambiguous unless the standard
-`__CharacterName__.json` filename identifies the main credential. Additional
-candidates remain listed and are counted separately in the report.
+directory levels below each year. For example, it records \`2009\`,
+\`2009\\\\06. music\`, and \`2009\\\\06. music\\\\06. s.rt.example\`.
+The report also scans each year's album folder identified by the year prefix and
+recognizes character folders using AnuarySignature's existing naming convention.
+It records character identity, relative folder paths, credential filenames and
+relative credential paths. Missing credentials are marked as missing; multiple
+\`__*.json\` candidates are marked as ambiguous unless the standard
+\`__CharacterName__.json\` filename identifies the main credential.
+
+When opening the report dialog, AnuarySignature lists each year and its direct
+child folders. The user can mark individual folders to exclude their entire
+subtree. \`resources.local.personal\` is excluded by default in every year; this
+can be overridden for a particular year. Exclusion preferences are stored in
+\`__structure__/dependent_directory_report_settings.json\`.
+
+Opening the dialog does not generate the report. The scan starts only after
+pressing **Generar reporte**. During generation, the dialog displays the current
+year and folder being processed with a progress bar. The report is replaced only
+after the scan completes; a failed scan preserves the previous report.
 
 Credential JSON contents and image files are never opened, copied or embedded
 in this report. Only regular credential filenames and relative paths are
 recorded. Symbolic links and Windows reparse-point files/directories are skipped.
-
-The report is regenerated after AnuarySignature creates or renames year folders,
-and after a character credential is saved. It is also refreshed during a complete
-character scan when AnuarySignature creates missing credential JSON files.
-To rebuild it manually, use
-**Herramientas → Generar/actualizar reporte de la unidad dependiente**.
-The manual scan runs in the background and preserves the previous report if
-the dependent drive cannot be read completely.
-
-The report is a local change in the private Structure repository. Use
-**Ajustes → Sincronizar Structure con GitHub → Subir cambios** to publish the
-updated report to the private repository so it can be consulted remotely.
+The report and its exclusion preferences are local changes in the private
+Structure repository. Use the usual
+**Ajustes → Sincronizar Structure con GitHub → Subir cambios** action to publish them.
 
 ## Phase 6 — Structure status and character colours
 
