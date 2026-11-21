@@ -327,3 +327,41 @@ def test_generic_json_update_cannot_bypass_character_credential_validation(tmp_p
         assert "update_character_credential" in str(error)
     else:
         raise AssertionError("Character credentials must use the character-aware operation")
+
+
+def test_order_target_lookup_finds_character_outside_six_profile_ui_cache(tmp_path):
+    service, manager, dependent, structure_dir, first_credential = setup_order_service(tmp_path)
+    album_root = dependent / "2018" / "15. album"
+
+    for index in range(2, 8):
+        name = f"character_{index}"
+        alterego = f"cure_{index}"
+        folder = album_root / (
+            f"15. {index:02d};{alterego};{name};2000-01-01;18"
+        )
+        folder.mkdir(parents=True)
+        (folder / f"__{name}__.json").write_text(
+            json.dumps({
+                "character_data": {
+                    "name": name,
+                    "alterego": alterego,
+                    "icon_path": "",
+                    "background_path": "",
+                    "color_group": "",
+                    "secondary_color": "",
+                }
+            }),
+            encoding="utf-8",
+        )
+
+    assert len(manager._cache["2018"]) == 1
+    credential, character = service._find_character_credential({
+        "year": 2018,
+        "name": "character_7",
+        "alterego": "cure_7",
+    })
+
+    assert credential.name == "__character_7__.json"
+    assert character["name"] == "character_7"
+    assert character["alterego"] == "cure_7"
+    assert credential.is_file()
