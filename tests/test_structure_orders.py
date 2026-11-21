@@ -226,3 +226,62 @@ def test_pending_orders_are_listed_and_invalid_orders_remain_visible(tmp_path):
     assert len(orders) == 2
     assert sum(bool(item["error"]) for item in orders) == 1
     assert sum(item["validated"] is not None for item in orders) == 1
+
+
+def test_replace_character_asset_preserves_previous_image_and_updates_credential(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    old_image = credential.parent / "old-icon.png"
+    old_image.write_bytes(b"previous-image")
+    payload = json.loads(credential.read_text(encoding="utf-8"))
+    payload["character_data"]["icon_path"] = old_image.name
+    credential.write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    manager._cache["2018"][0]["icon_path"] = old_image.name
+
+    asset_source = structure_dir / "orders" / "assets" / "new-icon.webp"
+    asset_source.parent.mkdir(parents=True, exist_ok=True)
+    asset_source.write_bytes(b"replacement-image")
+    order = make_order({
+        "type": "replace_character_asset",
+        "target": {
+            "year": 2018,
+            "name": "emiru_aisaki",
+            "alterego": "cure_machérie",
+        },
+        "field": "icon_path",
+        "asset_path": "assets/new-icon.webp",
+    }, order_id="order-image-001")
+
+    result = service.apply_order(order)
+
+    updated = json.loads(credential.read_text(encoding="utf-8"))
+    new_name = updated["character_data"]["icon_path"]
+    new_image = credential.parent / new_name
+    assert new_image.read_bytes() == b"replacement-image"
+    assert old_image.read_bytes() == b"previous-image"
+    assert new_name.startswith("__structure_order_order-image-001_icon.")
+    assert result["details"]["previous_image_preserved"] is True
+    assert manager._cache["2018"][0]["icon_path"] == new_name
+
+
+def test_replace_character_asset_rejects_asset_outside_order_assets_directory(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    order = make_order({
+        "type": "replace_character_asset",
+        "target": {
+            "year": 2018,
+            "name": "emiru_aisaki",
+            "alterego": "cure_machérie",
+        },
+        "field": "icon_path",
+        "asset_path": "../outside.png",
+    }, order_id="order-image-002")
+
+    try:
+        service.validate_order(order)
+    except StructureOrderError as error:
+        assert "traversal" in str(error) or "debe estar bajo orders/assets" in str(error)
+    else:
+        raise AssertionError("Order image assets must remain inside orders/assets")
