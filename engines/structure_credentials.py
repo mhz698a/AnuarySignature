@@ -184,7 +184,7 @@ class StructureGitHubCredentialStore:
 
     @staticmethod
     def validate_token(token: str) -> str:
-        """Validate identity, private-repository access and write permission."""
+        """Validate the GitHub identity and access to the private repository."""
         clean_token = token.strip()
         if not clean_token:
             raise StructureCredentialError("El token está vacío.")
@@ -234,13 +234,7 @@ class StructureGitHubCredentialStore:
                 "GitHub no devolvió el nombre de la cuenta autenticada."
             )
 
-        repository = get_json(STRUCTURE_REPOSITORY_API)
-        permissions = repository.get("permissions") or {}
-        if permissions.get("push") is False:
-            raise StructureCredentialError(
-                "El token puede consultar el repositorio, pero no subir cambios. "
-                "En GitHub habilita Repository permissions → Contents → Read and write."
-            )
+        get_json(STRUCTURE_REPOSITORY_API)
         return username
 
     def get_credentials(self) -> tuple[str, str] | None:
