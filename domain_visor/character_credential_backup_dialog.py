@@ -42,6 +42,30 @@ class _CharacterBackupWorker(QThread):
             self.failed.emit(str(error))
 
 
+class SingleCharacterBackupWorker(QThread):
+    """Back up one edited character without blocking the main GUI thread."""
+
+    completed = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(
+        self,
+        dependent_path: str | Path,
+        character: dict,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.dependent_path = Path(dependent_path)
+        self.character = dict(character)
+
+    def run(self):
+        try:
+            service = CharacterCredentialBackupService(self.dependent_path)
+            self.completed.emit(service.backup_character(self.character))
+        except Exception as error:
+            self.failed.emit(str(error))
+
+
 class CharacterCredentialBackupDialog(QDialog):
     """Back up every discoverable on-disk character credential and its selected images."""
 
