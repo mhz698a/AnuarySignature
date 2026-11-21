@@ -587,7 +587,7 @@ class VasculumApp(QMainWindow):
                 )
                 if refresh_after:
                     self.refresh_data()
-            elif snapshot:
+            elif snapshot and service.has_pending_snapshot() and not dialog.discarded:
                 self.show_status_message(
                     f"Snapshot de caché preservado para revisión: "
                     f"{snapshot.get('character_count', 0)} personajes.",
@@ -600,7 +600,7 @@ class VasculumApp(QMainWindow):
                 "Sincronización de credenciales",
                 f"No se pudo preparar la comparación de caché:\n{error}",
             )
-            return False
+            return None if capture_current else False
 
     def generate_dependent_directory_report(self):
         """Generate the shallow directory-only report for the configured unit."""
@@ -936,16 +936,17 @@ class VasculumApp(QMainWindow):
     def _reload_structure_after_sync(self):
         """Capture remote character metadata before a scan can rewrite the local cache."""
         self.load_initial_json()
-        try:
-            self.open_character_cache_sync_dialog(
-                refresh_after=False,
-                capture_current=True,
-            )
-        except Exception as error:
+        preserved = self.open_character_cache_sync_dialog(
+            refresh_after=False,
+            capture_current=True,
+        )
+        if preserved is None:
             self.show_status_message(
-                f"No se pudo preservar el caché remoto para revisión: {error}",
-                8000,
+                "La caché remota no pudo preservarse. Se canceló la recarga para "
+                "evitar sobrescribir cambios que aún no han sido revisados.",
+                9000,
             )
+            return
         self.refresh_data()
         self.show_status_message(
             "Los datos de Structure fueron actualizados. Recargando el visor…",
