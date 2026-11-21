@@ -82,3 +82,10 @@ def get_structure_clone_command(
     """Build the Windows command needed for the first local checkout."""
     destination = get_structure_repo_root(local_app_data)
     return f'git clone {STRUCTURE_REPOSITORY_URL} "{destination}"'
+
+
+def get_structure_backup_root(
+    local_app_data: str | Path | None = None,
+) -> Path:
+    """Return the backup directory outside the Git checkout."""
+    return get_structure_repo_root(local_app_data).parent / "Backups" / "Structure"

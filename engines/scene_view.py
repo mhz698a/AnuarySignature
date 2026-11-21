@@ -366,6 +366,12 @@ class VasculumApp(QMainWindow):
         self.manage_note_classifications_action.triggered.connect(
             lambda *_: self.open_note_classifications_manager()
         )
+        self.structure_sync_action = settings_menu.addAction(
+            "Sincronizar Structure con GitHub"
+        )
+        self.structure_sync_action.triggered.connect(
+            lambda *_: self.open_structure_sync_dialog()
+        )
         settings_menu.addSeparator()
 
         self.dependent_path_action = settings_menu.addAction(
@@ -704,6 +710,23 @@ class VasculumApp(QMainWindow):
         service = KnowledgeEtudeService.instance()
         if service is not None:
             service.open_classifications_manager(parent=self)
+
+    def open_structure_sync_dialog(self):
+        """Open the Structure synchronization and local-backup manager."""
+        from domain_visor.structure_sync_dialog import StructureSyncDialog
+
+        dialog = StructureSyncDialog(self)
+        dialog.structure_updated.connect(self._reload_structure_after_sync)
+        dialog.exec()
+
+    def _reload_structure_after_sync(self):
+        """Reload infrastructure and character indexes after a download or restore."""
+        self.load_initial_json()
+        self.refresh_data()
+        self.show_status_message(
+            "Los datos de Structure fueron actualizados. Recargando el visor…",
+            5000,
+        )
 
     def restore_editor_visible_state(self):
         editor_visible_setting = self.settings.value("json_editor_visible")

@@ -8,6 +8,7 @@ from engines.structure_paths import (
     get_structure_dir,
     get_structure_file,
     get_structure_repo_root,
+    get_structure_backup_root,
 )
 
 
@@ -38,3 +39,9 @@ def test_structure_file_rejects_paths_outside_structure(filename, tmp_path):
 def test_missing_structure_files_reports_required_json(tmp_path):
     missing = get_missing_structure_files(tmp_path)
     assert missing == list(REQUIRED_STRUCTURE_FILES)
+
+
+def test_structure_backups_are_stored_outside_git_checkout(tmp_path):
+    assert get_structure_backup_root(tmp_path) == (
+        tmp_path / "AnuarySignature" / "Backups" / "Structure"
+    )

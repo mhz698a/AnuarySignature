@@ -32,10 +32,22 @@ git clone https://github.com/mhz698a/AnuarySignature-Structure.git "$env:LOCALAP
 GitHub Desktop can also be used to clone the private repository to that exact
 directory. Do not clone it inside the AnuarySignature application directory.
 
-This migration establishes the local data location. Uploading and downloading
-updates through AnuarySignature itself will be implemented in a later phase.
-Until then, changes to Structure files remain local unless committed and pushed
-using Git or GitHub Desktop.
+## Synchronization and local backups
+
+Use **Ajustes → Sincronizar Structure con GitHub** to check for remote updates,
+download changes, or upload local edits. Downloads use fast-forward updates only
+and create a local backup before changing files. Local modifications and diverged
+commits are never overwritten automatically.
+
+Local backups are stored outside the Git checkout at:
+
+```text
+%LOCALAPPDATA%\\AnuarySignature\\Backups\\Structure
+```
+
+The synchronization controls require Git to be installed and the private
+repository to be accessible through the account configured in Git Credential
+Manager or GitHub Desktop.
 
 ## Installation
 
