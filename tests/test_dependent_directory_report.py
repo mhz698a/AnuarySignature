@@ -108,6 +108,30 @@ def test_report_records_credential_filename_and_relative_location(tmp_path):
     assert "must_not_be_embedded" not in report_path.read_text(encoding="utf-8")
 
 
+def test_report_recognizes_legacy_credential_filename_pattern(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    character_folder = (
+        dependent_root
+        / "2024"
+        / "21. album"
+        / "21. 01;Example;Legacy;2000-01-02;25"
+    )
+    character_folder.mkdir(parents=True)
+    (character_folder / "__Legacy.json").write_text("{}", encoding="utf-8")
+
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    service.generate_or_update()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    record = payload["character_credentials"][0]
+    assert record["credential_status"] == "found"
+    assert record["credential_file"] == "__Legacy.json"
+    assert record["credential_relative_path"].endswith("/__Legacy.json")
+
+
 def test_report_marks_missing_and_ambiguous_character_credentials(tmp_path):
     dependent_root = tmp_path / "_Internal"
     report_path = tmp_path / "Structure" / "__structure__" / (
