@@ -296,6 +296,7 @@ class StructureSyncService:
         """Restore a selected snapshot, first preserving the current working tree."""
         self._ensure_repository()
         self._ensure_expected_remote()
+        self._ensure_main_branch()
         current_head = self._run_git("rev-parse", "HEAD").stdout.strip()
         restore_result = self.backups.restore_backup(
             backup_path,

@@ -38,13 +38,12 @@ class _StructureOperationWorker(QThread):
 class StructureSyncDialog(QDialog):
     """Manage checks, downloads, uploads and recoverable local Structure backups."""
 
-    structure_updated = pyqtSignal()
-
     def __init__(self, parent=None, service=None):
         super().__init__(parent)
         self.service = service or StructureSyncService()
         self.worker = None
         self.current_status = None
+        self.structure_changed = False
         self.backups = []
 
         self.setWindowTitle("Sincronización de Structure")
@@ -189,12 +188,15 @@ class StructureSyncDialog(QDialog):
         behind = int(status.get("behind", 0))
         local_changes = int(status.get("local_change_count", 0))
         conflicts = status.get("conflicts", [])
+        on_main = status.get("branch") == "main"
 
         self.download_button.setEnabled(
-            behind > 0 and ahead == 0 and local_changes == 0 and not conflicts
+            on_main and behind > 0 and ahead == 0
+            and local_changes == 0 and not conflicts
         )
         self.upload_button.setEnabled(
-            behind == 0 and (ahead > 0 or local_changes > 0) and not conflicts
+            on_main and behind == 0
+            and (ahead > 0 or local_changes > 0) and not conflicts
         )
         self.restore_backup_button.setEnabled(self.backup_combo.count() > 0)
 
@@ -247,7 +249,7 @@ class StructureSyncDialog(QDialog):
                         f"{self.operation_label.text()} Respaldo previo: "
                         f"{Path(backup_path).name}."
                     )
-                self.structure_updated.emit()
+                self.structure_changed = True
             self._refresh_backup_list()
         elif operation == "backup":
             backup_path = result.get("backup_path")
@@ -258,7 +260,7 @@ class StructureSyncDialog(QDialog):
             self._refresh_backup_list()
         elif operation == "restore":
             self.operation_label.setText(result.get("message", "Respaldo restaurado."))
-            self.structure_updated.emit()
+            self.structure_changed = True
             self._refresh_backup_list()
             self.current_status = None
             self.status_label.setText(

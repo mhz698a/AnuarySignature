@@ -716,8 +716,9 @@ class VasculumApp(QMainWindow):
         from domain_visor.structure_sync_dialog import StructureSyncDialog
 
         dialog = StructureSyncDialog(self)
-        dialog.structure_updated.connect(self._reload_structure_after_sync)
         dialog.exec()
+        if dialog.structure_changed:
+            self._reload_structure_after_sync()
 
     def _reload_structure_after_sync(self):
         """Reload infrastructure and character indexes after a download or restore."""
