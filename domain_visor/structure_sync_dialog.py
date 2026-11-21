@@ -336,8 +336,7 @@ class StructureSyncDialog(QDialog):
             for branch in branches:
                 self.branch_combo.addItem(branch, branch)
             current_index = self.branch_combo.findData(current_branch)
-            if current_index >= 0:
-                self.branch_combo.setCurrentIndex(current_index)
+            self.branch_combo.setCurrentIndex(current_index)
             self.branch_combo.blockSignals(False)
             self._previous_branch = current_branch
             if not branches:
