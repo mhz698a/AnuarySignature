@@ -612,7 +612,7 @@ class VasculumApp(QMainWindow):
             return None if capture_current else False
 
     def generate_dependent_directory_report(self):
-        """Generate the shallow directory-only report for the configured unit."""
+        """Generate the directory and character-credential report for the configured unit."""
         from domain_visor.dependent_directory_report_dialog import (
             DependentDirectoryReportDialog,
         )
@@ -624,7 +624,9 @@ class VasculumApp(QMainWindow):
             self.structure_status_monitor.refresh_now()
             self.show_status_message(
                 "Reporte de unidad dependiente actualizado: "
-                f"{result.get('directory_count', 0)} directorios.",
+                f"{result.get('directory_count', 0)} directorios, "
+                f"{result.get('character_count', 0)} personajes y "
+                f"{result.get('credential_found_count', 0)} credenciales localizadas.",
                 5000,
             )
 
