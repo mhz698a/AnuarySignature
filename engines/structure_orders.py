@@ -426,6 +426,7 @@ class StructureOrderService:
             if (
                 not asset_resolved.is_relative_to(self.dependent_root)
                 or not asset_resolved.is_file()
+                or asset_resolved.suffix.lower() not in ALLOWED_IMAGE_EXTENSIONS
             ):
                 raise StructureOrderError(
                     f"{asset_field} debe apuntar a una imagen existente dentro "
