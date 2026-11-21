@@ -13,6 +13,7 @@ from engines.structure_paths import (
     get_structure_repo_root,
 )
 from engines.structure_backups import StructureBackupManager
+from engines.structure_credentials import StructureGitHubCredentialStore
 
 
 class StructureSyncError(RuntimeError):
@@ -30,10 +31,12 @@ class StructureSyncService:
         repo_root: str | Path | None = None,
         backup_manager: StructureBackupManager | None = None,
         git_executable: str = "git",
+        credentials_store: StructureGitHubCredentialStore | None = None,
     ) -> None:
         self.repo_root = Path(repo_root) if repo_root else get_structure_repo_root()
         self.backups = backup_manager or StructureBackupManager(self.repo_root)
         self.git_executable = git_executable
+        self.credentials = credentials_store or StructureGitHubCredentialStore()
 
     def _run_git(
         self,
@@ -43,6 +46,17 @@ class StructureSyncService:
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["GIT_TERMINAL_PROMPT"] = "0"
+        environment = self.credentials.apply_git_authentication(environment)
+
+        process_options = {}
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            process_options = {
+                "creationflags": subprocess.CREATE_NO_WINDOW,
+                "startupinfo": startupinfo,
+            }
 
         try:
             result = subprocess.run(
@@ -54,6 +68,7 @@ class StructureSyncService:
                 timeout=timeout,
                 env=environment,
                 check=False,
+                **process_options,
             )
         except FileNotFoundError as error:
             raise StructureSyncError(
@@ -69,12 +84,23 @@ class StructureSyncService:
         if check and result.returncode != 0:
             detail = (result.stderr or result.stdout).strip()
             lowered = detail.casefold()
-            if "authentication failed" in lowered or "could not read username" in lowered:
-                detail = (
-                    "GitHub rechazó la autenticación. Inicia sesión en GitHub Desktop "
-                    "o configura Git Credential Manager para esta cuenta."
-                    + (f"\n{detail}" if detail else "")
-                )
+            if (
+                "authentication failed" in lowered
+                or "could not read username" in lowered
+                or "invalid username or token" in lowered
+                or "terminal prompts disabled" in lowered
+            ):
+                if self.credentials.get_credentials():
+                    guidance = (
+                        "GitHub rechazó el token guardado. Vuelve a configurarlo y "
+                        "comprueba que siga vigente y tenga Contents: Read and write."
+                    )
+                else:
+                    guidance = (
+                        "GitHub rechazó la autenticación. Configura un token desde "
+                        "Administrar token o inicia sesión mediante Git Credential Manager."
+                    )
+                detail = guidance + (f"\n{detail}" if detail else "")
             elif "repository not found" in lowered or "access denied" in lowered:
                 detail = (
                     "No se pudo acceder al repositorio privado. Comprueba que la cuenta "
