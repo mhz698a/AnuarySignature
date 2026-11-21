@@ -146,3 +146,47 @@ def test_backup_requires_a_git_checkout(tmp_path):
         assert "no está clonado correctamente" in str(error)
     else:
         raise AssertionError("Expected a local Structure checkout validation failure")
+
+
+import json
+
+
+def test_backup_discovery_finds_all_disk_credentials_beyond_ui_cache_limit(tmp_path):
+    dependent_root = tmp_path / "dependent"
+    structure_dir = tmp_path / "Structure" / "__structure__"
+    (structure_dir.parent / ".git").mkdir(parents=True)
+    structure_dir.mkdir(parents=True)
+
+    year_dir = dependent_root / "2018" / "15. album"
+    for index in range(1, 9):
+        character_name = f"character_{index}"
+        alterego = f"cure_{index}"
+        folder = year_dir / (
+            f"15. {index:02d};{alterego};{character_name};2000-01-01;18"
+        )
+        folder.mkdir(parents=True)
+        (folder / f"__{character_name}__.json").write_text(
+            json.dumps({
+                "character_data": {
+                    "name": character_name,
+                    "alterego": alterego,
+                    "icon_path": "",
+                    "background_path": "",
+                }
+            }),
+            encoding="utf-8",
+        )
+
+    service = CharacterCredentialBackupService(
+        dependent_root,
+        structure_dir=structure_dir,
+    )
+    discovered, failures = service.discover_characters(
+        {"2018": [{"year": 2018, "name": "character_1", "alterego": "cure_1"}]}
+    )
+
+    assert len(discovered) == 8
+    assert failures == []
+    assert {item["name"] for item in discovered} == {
+        f"character_{index}" for index in range(1, 9)
+    }
