@@ -273,12 +273,7 @@ class VasculumApp(QMainWindow):
                 border: none;
             }
         """)
-        zoom_label = QLabel("Zoom", self)
-        zoom_label.setStyleSheet("color: #bdbdbd; padding-left: 6px;")
-        self.zoom_percentage_label.setStyleSheet("color: #ffffff; padding-right: 8px;")
-        status_bar.addPermanentWidget(zoom_label)
-        status_bar.addPermanentWidget(self.zoom_slider)
-        status_bar.addPermanentWidget(self.zoom_percentage_label)
+        
 
         self.structure_status_label = QLabel("STRUCTURE · …", self)
         self.structure_status_label.setMinimumWidth(150)
@@ -299,6 +294,13 @@ class VasculumApp(QMainWindow):
         )
         self._structure_sync_dialog_waiting = False
         self.structure_status_monitor.start()
+        
+        zoom_label = QLabel("Zoom", self)
+        zoom_label.setStyleSheet("color: #bdbdbd; padding-left: 6px;")
+        self.zoom_percentage_label.setStyleSheet("color: #ffffff; padding-right: 8px;")
+        status_bar.addPermanentWidget(zoom_label)
+        status_bar.addPermanentWidget(self.zoom_slider)
+        status_bar.addPermanentWidget(self.zoom_percentage_label)
 
         status_bar.showMessage("Visor de dominios listo", 3000)
 
