@@ -142,7 +142,12 @@ class StructureStatusMonitor(QObject):
             label = f"BRANCH {branch}"
             color = "#e5a65e"
         elif behind and (ahead or local_changes):
-            label = f"PULL {behind} · PUSH {ahead + (1 if local_changes else 0)}"
+            label = (
+                f"PULL {behind} · LOCAL {local_changes}"
+                if local_changes and not ahead
+                else f"PULL {behind} · PUSH {ahead}"
+                + (f" · LOCAL {local_changes}" if local_changes else "")
+            )
             color = "#e5a65e"
         elif behind:
             label = f"PULL {behind}"
