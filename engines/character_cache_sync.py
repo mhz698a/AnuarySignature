@@ -123,6 +123,10 @@ class CharacterCacheSyncService:
         payload = self._read_cache(self.cache_path)
         raw = self.cache_path.read_bytes()
         if self.pending_snapshot_path.exists():
+            if not self._is_plain_file(self.pending_snapshot_path):
+                raise CharacterCacheSyncError(
+                    "El snapshot pendiente no es un archivo regular. No se leerá ni sobrescribirá."
+                )
             existing = self.pending_snapshot_path.read_bytes()
             if existing != raw:
                 raise CharacterCacheSyncError(
