@@ -168,6 +168,10 @@ class CharacterCacheSyncService:
         candidate = Path(value).expanduser()
         if not candidate.is_absolute():
             candidate = credential_path.parent / candidate
+        if not self._is_plain_file(candidate):
+            raise CharacterCacheSyncError(
+                f"{field_name} debe apuntar a un archivo de imagen regular, sin enlaces."
+            )
         try:
             resolved = candidate.resolve(strict=True)
         except OSError as error:
@@ -275,6 +279,9 @@ class CharacterCacheSyncService:
                     fields[field_name] = self._normalize_field(
                         field_name, cached_character[field_name]
                     )
+
+                if not fields:
+                    continue
 
                 try:
                     StructureOrderService._validate_character_fields(fields)
