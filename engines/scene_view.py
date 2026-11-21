@@ -574,7 +574,11 @@ class VasculumApp(QMainWindow):
                 service.ensure_pending_snapshot()
                 snapshot = None
 
-            dialog = CharacterCacheSyncDialog(service, self)
+            dialog = CharacterCacheSyncDialog(
+                service,
+                self,
+                close_when_empty=capture_current,
+            )
             dialog.exec()
             if dialog.applied:
                 result = dialog.apply_result or {}
