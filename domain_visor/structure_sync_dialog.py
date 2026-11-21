@@ -340,6 +340,23 @@ class StructureSyncDialog(QDialog):
         branch = self.branch_combo.itemData(index)
         if not branch or branch == self._previous_branch:
             return
+        reply = QMessageBox.question(
+            self,
+            "Cambiar rama de Structure",
+            f"El checkout local cambiará a la rama '{branch}'. "
+            "Esto sustituye los archivos de trabajo por los de esa rama, pero no "
+            "fusiona ramas ni modifica otras ramas. Se preservará characters_cache.json "
+            "para revisión local. La operación requiere que el checkout esté limpio. "
+            "¿Continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            self.branch_combo.blockSignals(True)
+            previous_index = self.branch_combo.findData(self._previous_branch)
+            self.branch_combo.setCurrentIndex(previous_index)
+            self.branch_combo.blockSignals(False)
+            return
         self._run_operation("switch", branch)
 
     def _on_operation_completed(self, operation: str, result):
