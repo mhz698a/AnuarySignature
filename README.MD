@@ -108,6 +108,53 @@ empty; non-empty local values remain authoritative.
 The researched cache update is reviewed separately in
 [AnuarySignature-Structure PR #1](https://github.com/mhz698a/AnuarySignature-Structure/pull/2).
 
+## Phase 7 — Character credential backups
+
+AnuarySignature stores a replaceable backup for each character under
+`__structure__/character_credentials/<year>/<alterego>--<name>/` in the private
+Structure checkout. Each entry contains the original credential JSON, the
+selected `icon_path` image, the selected `background_path` image when present,
+and a manifest with hashes and source-relative metadata.
+
+Saving a character automatically refreshes that character's local Structure
+backup. To back up the entire character cache, use
+**Herramientas → Respaldar credenciales de personajes en Structure**.
+Image changes replace the previous backup copy in that character's archive
+folder; they never delete or alter the source image in the dependent drive.
+Only selected icon/background assets are copied, not every image in the folder.
+The bulk backup runs in a worker thread.
+
+The backup first writes into the local private Structure checkout. It is not
+pushed automatically, because an automatic push could publish other pending
+Structure changes. Review the statusbar and use **Subir cambios** to publish it.
+
+## Phase 8 — Approval-gated orders from GitHub or AI
+
+Orders are JSON files placed in the private Structure repository under
+`__structure__/orders/pending/<order-id>.json`. An AI can propose an order by
+opening a Pull Request in that private repository. After review and merge, the
+user downloads Structure and opens
+**Herramientas → Revisar órdenes de GitHub**.
+
+No order runs automatically. The application validates the operation and
+target, previews the affected character/path, and requires an explicit
+**Aplicar orden** confirmation. Supported operations are:
+`update_character_credential`, `update_dependent_json`, and
+`create_directory`. Existing JSON files receive a pre-change backup under
+`%LOCALAPPDATA%\\AnuarySignature\\Backups\\DependentOrders`. Applied order
+IDs are tracked locally so they cannot be repeated on the same computer.
+
+There are no delete, move, rename, shell, script or arbitrary-code operations.
+An order cannot write outside the configured dependent drive. Changing an
+image path requires that the image already exist inside the dependent drive;
+the order system does not download or copy image files in this version.
+Application results are written to
+`__structure__/orders/results/<order-id>.json` and can be published with the
+usual **Subir cambios** action.
+
+See [docs/STRUCTURE_ORDERS.md](docs/STRUCTURE_ORDERS.md) for the order schema
+and full workflow.
+
 ## Installation
 
 1. Clone the repository:
