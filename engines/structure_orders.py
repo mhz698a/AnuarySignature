@@ -355,6 +355,26 @@ class StructureOrderService:
         if not isinstance(character_data, dict):
             raise StructureOrderError("La credencial no contiene character_data.")
 
+        for asset_field in ("icon_path", "background_path"):
+            if asset_field not in validated["fields"]:
+                continue
+            asset_value = validated["fields"][asset_field]
+            if not asset_value:
+                continue
+            asset_candidate = Path(asset_value).expanduser()
+            if not asset_candidate.is_absolute():
+                asset_candidate = credential_path.parent / asset_candidate
+            asset_resolved = asset_candidate.resolve()
+            if (
+                not asset_resolved.is_relative_to(self.dependent_root)
+                or not asset_resolved.is_file()
+            ):
+                raise StructureOrderError(
+                    f"{asset_field} debe apuntar a una imagen existente dentro "
+                    "de la unidad dependiente. Esta orden no copia ni descarga "
+                    "archivos de imagen."
+                )
+
         backup = self._create_prechange_backup(
             validated["id"],
             credential_path,
@@ -439,6 +459,10 @@ class StructureOrderService:
         if order_id in state["applied"]:
             raise StructureOrderError(
                 f"La orden {order_id} ya fue aplicada en este equipo."
+            )
+        if (self.results_root / f"{order_id}.json").exists():
+            raise StructureOrderError(
+                f"Ya existe un resultado para la orden {order_id}; no se ejecutará otra vez."
             )
 
         operation_type = validated["operation_type"]
