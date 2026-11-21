@@ -439,6 +439,12 @@ class VasculumApp(QMainWindow):
         self.structure_orders_action.triggered.connect(
             lambda *_: self.open_structure_orders_dialog()
         )
+        self.character_cache_sync_action = tools_menu.addAction(
+            "Aplicar cambios de caché a credenciales locales"
+        )
+        self.character_cache_sync_action.triggered.connect(
+            lambda *_: self.open_character_cache_sync_dialog()
+        )
 
         help_menu = self.menu_bar.addMenu("Ayuda")
         self.about_action = help_menu.addAction("Acerca de...")
@@ -462,6 +468,21 @@ class VasculumApp(QMainWindow):
             return
         self._startup_complete = True
         self.trigger_render()
+        try:
+            from engines.character_cache_sync import CharacterCacheSyncService
+
+            cache_sync = CharacterCacheSyncService(
+                dependent_path=self.dependent_path,
+                character_manager=self.character_manager,
+            )
+            if cache_sync.has_pending_snapshot():
+                self.show_status_message(
+                    "Hay cambios de caché Structure pendientes de aplicar a las "
+                    "credenciales locales. Usa Herramientas → Aplicar cambios de caché.",
+                    9000,
+                )
+        except Exception:
+            pass
         # El visor permanece oculto; el usuario puede mostrarlo desde la bandeja.
 
     def configure_dependent_path(self):
@@ -532,6 +553,54 @@ class VasculumApp(QMainWindow):
                 self.refresh_data()
         finally:
             self.structure_status_monitor.resume(refresh_immediately=True)
+
+    def open_character_cache_sync_dialog(
+        self,
+        refresh_after: bool = True,
+        capture_current: bool = False,
+    ):
+        """Review Structure cache differences and optionally apply selected local fields."""
+        from domain_visor.character_cache_sync_dialog import CharacterCacheSyncDialog
+        from engines.character_cache_sync import CharacterCacheSyncService
+
+        try:
+            service = CharacterCacheSyncService(
+                dependent_path=self.dependent_path,
+                character_manager=self.character_manager,
+            )
+            if capture_current:
+                snapshot = service.capture_pending_snapshot()
+            else:
+                service.ensure_pending_snapshot()
+                snapshot = None
+
+            dialog = CharacterCacheSyncDialog(service, self)
+            dialog.exec()
+            if dialog.applied:
+                result = dialog.apply_result or {}
+                self.show_status_message(
+                    f"Credenciales locales actualizadas: "
+                    f"{result.get('applied_characters', 0)} personajes, "
+                    f"{result.get('applied_fields', 0)} campos. "
+                    "Se creó un respaldo previo en AppData.",
+                    7000,
+                )
+                if refresh_after:
+                    self.refresh_data()
+            elif snapshot:
+                self.show_status_message(
+                    f"Snapshot de caché preservado para revisión: "
+                    f"{snapshot.get('character_count', 0)} personajes.",
+                    6000,
+                )
+            return dialog.applied
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Sincronización de credenciales",
+                f"No se pudo preparar la comparación de caché:\n{error}",
+            )
+            return False
 
     def generate_dependent_directory_report(self):
         """Generate the shallow directory-only report for the configured unit."""
@@ -865,8 +934,18 @@ class VasculumApp(QMainWindow):
             self.structure_status_monitor.resume(refresh_immediately=True)
 
     def _reload_structure_after_sync(self):
-        """Reload infrastructure and character indexes after a download or restore."""
+        """Capture remote character metadata before a scan can rewrite the local cache."""
         self.load_initial_json()
+        try:
+            self.open_character_cache_sync_dialog(
+                refresh_after=False,
+                capture_current=True,
+            )
+        except Exception as error:
+            self.show_status_message(
+                f"No se pudo preservar el caché remoto para revisión: {error}",
+                8000,
+            )
         self.refresh_data()
         self.show_status_message(
             "Los datos de Structure fueron actualizados. Recargando el visor…",
