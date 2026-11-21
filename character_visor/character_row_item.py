@@ -388,7 +388,10 @@ class CharacterIconItem(QGraphicsItem):
                             set(),
                         )
                         active_workers.discard(backup_worker)
-                        if not active_workers:
+                        if (
+                            not active_workers
+                            and not getattr(window, "_closing_application", False)
+                        ):
                             active_monitor = getattr(
                                 window,
                                 "structure_status_monitor",
