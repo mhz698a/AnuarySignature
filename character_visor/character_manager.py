@@ -125,6 +125,48 @@ class CharacterManager:
         if dirty:
             self.save_cache_file()
 
+    def _find_cached_character(
+        self,
+        year: int,
+        name: str,
+        alterego: str,
+    ) -> dict | None:
+        """Find a character's prior Structure cache entry before rebuilding a year."""
+        candidates = self._cache.get(str(year), [])
+        normalized_name = str(name or "").strip().casefold()
+        normalized_alterego = str(alterego or "").strip().casefold()
+
+        for cached_character in candidates:
+            cached_name = str(cached_character.get("name", "")).strip().casefold()
+            cached_alterego = str(cached_character.get("alterego", "")).strip().casefold()
+            if (
+                (normalized_name and cached_name == normalized_name)
+                or (
+                    normalized_alterego
+                    and cached_alterego == normalized_alterego
+                )
+            ):
+                return cached_character
+        return None
+
+    @staticmethod
+    def _merge_cached_researched_colors(
+        char_data: dict,
+        cached_character: dict | None,
+    ) -> bool:
+        """Carry researched Structure colors into legacy credentials that lack them."""
+        if not cached_character:
+            return False
+
+        changed = False
+        for field_name in ("color_group", "secondary_color"):
+            cached_value = str(cached_character.get(field_name) or "").strip()
+            current_value = str(char_data.get(field_name) or "").strip()
+            if cached_value and not current_value:
+                char_data[field_name] = cached_value
+                changed = True
+        return changed
+
     @staticmethod
     def _credential_payload(char_data: dict) -> dict:
         """Construye el JSON persistido sin los metadatos incluidos en la carpeta."""
@@ -208,6 +250,11 @@ class CharacterManager:
                             # Si la posición, edad o la fecha no son válidas, descartamos
                             continue
 
+                        cached_character = self._find_cached_character(
+                            year,
+                            name,
+                            alterego,
+                        )
                         target_json = item / f"__{name}__.json"
                         found_json_file = None
                         char_data = {}
@@ -230,6 +277,12 @@ class CharacterManager:
                                 pass
 
                         if char_data:
+                            # Si la credencial histórica no tenía colores, conservar
+                            # los valores investigados almacenados en Structure.
+                            self._merge_cached_researched_colors(
+                                char_data,
+                                cached_character,
+                            )
                             # Leer los metadatos estructurales desde el nombre de carpeta.
                             char_data["year"] = year
                             char_data["position"] = position
@@ -288,6 +341,13 @@ class CharacterManager:
                                 "profession_group": "",
                                 "time_of_year": ""
                             }
+
+                            # Aplicar colores de Structure cuando se crea una credencial nueva
+                            # a partir de datos de carpeta.
+                            self._merge_cached_researched_colors(
+                                char_data,
+                                cached_character,
+                            )
 
                             # Guardar el JSON en la carpeta
                             if cancel_check and cancel_check():
