@@ -712,23 +712,35 @@ class StructureOrderService:
         operation = validated["operation_type"]
         if operation == "update_character_credential":
             target = validated["target"]
+            field_preview = json.dumps(
+                validated["fields"],
+                ensure_ascii=False,
+                indent=2,
+            )
             return (
                 f"Actualizar credencial: {target['name']} / {target['alterego']} "
-                f"({target['year']}).\nCampos: "
-                + ", ".join(sorted(validated["fields"]))
+                f"({target['year']}).\nCambios propuestos:\n{field_preview}"
             )
         if operation == "replace_character_asset":
             target = validated["target"]
             return (
                 f"Reemplazar imagen seleccionada ({validated['field']}) de "
-                f"{target['name']} / {target['alterego']} ({target['year']}).\\n"
-                f"Recurso: {validated['asset_path']}\\n"
+                f"{target['name']} / {target['alterego']} ({target['year']}).\n"
+                f"Recurso: {validated['asset_path']}\n"
                 "La imagen anterior se conservará en la unidad dependiente."
             )
         if operation == "update_dependent_json":
+            document_preview = json.dumps(
+                validated["document"],
+                ensure_ascii=False,
+                indent=2,
+            )
+            if len(document_preview) > 3000:
+                document_preview = document_preview[:3000] + "\n… (contenido truncado)"
             return (
                 f"Actualizar JSON existente: {validated['path']}\n"
-                "Se creará un respaldo del contenido anterior."
+                "Se creará un respaldo del contenido anterior.\n"
+                f"Nuevo contenido:\n{document_preview}"
             )
         if operation == "create_directory":
             return f"Crear directorio: {validated['path']}"
