@@ -141,6 +141,7 @@ class DependentDirectoryReportDialog(QDialog):
             f"Credenciales encontradas: {result.get('credential_found_count', 0)}\n"
             f"Sin credencial: {result.get('credential_missing_count', 0)}\n"
             f"Ubicación ambigua: {result.get('credential_ambiguous_count', 0)}\n"
+            f"Con archivos adicionales: {result.get('credential_additional_candidates_count', 0)}\n"
             f"Archivos de credencial detectados: {result.get('credential_file_count', 0)}\n"
             "Profundidad máxima después del año: "
             f"{result.get('max_subfolder_levels_after_year', 2)} niveles\n\n"
