@@ -397,6 +397,12 @@ class VasculumApp(QMainWindow):
         self.verbose_resolve_action.triggered.connect(
             self.manage_verbose_resolutions
         )
+        self.dependent_directory_report_action = tools_menu.addAction(
+            "Generar/actualizar reporte de la unidad dependiente"
+        )
+        self.dependent_directory_report_action.triggered.connect(
+            lambda *_: self.generate_dependent_directory_report()
+        )
 
         help_menu = self.menu_bar.addMenu("Ayuda")
         self.about_action = help_menu.addAction("Acerca de...")
@@ -448,6 +454,22 @@ class VasculumApp(QMainWindow):
         self.show_status_message(
             f"Carpeta dependiente guardada: {path}", 5000
         )
+
+    def generate_dependent_directory_report(self):
+        """Generate the shallow directory-only report for the configured unit."""
+        from domain_visor.dependent_directory_report_dialog import (
+            DependentDirectoryReportDialog,
+        )
+
+        dialog = DependentDirectoryReportDialog(self.dependent_path, self)
+        dialog.exec()
+        if dialog.report_generated:
+            result = dialog.report_result or {}
+            self.show_status_message(
+                "Reporte de unidad dependiente actualizado: "
+                f"{result.get('directory_count', 0)} directorios.",
+                5000,
+            )
 
     def manage_verbose_resolutions(self):
         """Abre la tabla editable para las resoluciones verbosas."""
