@@ -79,8 +79,8 @@ The report also scans each year's `<prefix>. album` folder and recognizes
 character folders using AnuarySignature's existing naming convention. It records
 the character identity, the relative folder path, the credential filename and
 the credential's relative path. Missing credentials are marked as missing;
-multiple `__*.json` candidates are marked as ambiguous rather than selecting
-one arbitrarily.
+multiple `__*.json` candidates are marked as ambiguous unless the standard
+`__CharacterName__.json` filename identifies the credential unambiguously.
 
 Credential JSON contents and image files are never opened, copied or embedded
 in this report. Only regular credential filenames and relative paths are
