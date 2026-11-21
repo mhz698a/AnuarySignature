@@ -78,6 +78,7 @@ def test_switch_branch_refuses_to_switch_with_uncommitted_changes(tmp_path):
     service = StructureSyncService(repo_root=tmp_path)
     service._ensure_repository = lambda: None
     service._ensure_expected_remote = lambda: "https://github.com/mhz698a/AnuarySignature-Structure.git"
+    service._ensure_no_pending_character_cache_snapshot = lambda: None
     service._fetch = lambda **kwargs: None
     service._working_tree_changes = lambda: [" M characters_cache.json"]
     commands = []
@@ -96,3 +97,43 @@ def test_switch_branch_refuses_to_switch_with_uncommitted_changes(tmp_path):
         service.switch_branch("phase-6/reviewed-character-colours")
 
     assert not any(command and command[0] == "switch" for command in commands)
+
+def test_cache_snapshot_is_written_outside_checkout_and_not_overwritten(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "Structure" / "__structure__"
+    cache_dir.mkdir(parents=True)
+    cache_file = cache_dir / "characters_cache.json"
+    cache_file.write_text('{"2018": []}', encoding="utf-8")
+
+    pending = tmp_path / "AppData" / "CharacterCacheSync" / "pending_characters_cache.json"
+    monkeypatch.setattr(structure_sync, "get_structure_dir", lambda: cache_dir)
+    monkeypatch.setattr(
+        StructureSyncService,
+        "_pending_character_cache_snapshot_path",
+        staticmethod(lambda: pending),
+    )
+    service = StructureSyncService(repo_root=tmp_path / "checkout")
+
+    result = service._capture_character_cache_snapshot()
+
+    assert Path(result["snapshot_path"]) == pending
+    assert pending.read_text(encoding="utf-8") == '{"2018": []}'
+    cache_file.write_text('{"2019": []}', encoding="utf-8")
+
+    with pytest.raises(structure_sync.StructureSyncError, match="Ya existe otra versión"):
+        service._capture_character_cache_snapshot()
+
+    assert pending.read_text(encoding="utf-8") == '{"2018": []}'
+
+
+def test_pending_cache_snapshot_blocks_branch_change(tmp_path, monkeypatch):
+    pending = tmp_path / "pending_characters_cache.json"
+    pending.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        StructureSyncService,
+        "_pending_character_cache_snapshot_path",
+        staticmethod(lambda: pending),
+    )
+    service = StructureSyncService(repo_root=tmp_path)
+
+    with pytest.raises(structure_sync.StructureSyncError, match="copia pendiente"):
+        service._ensure_no_pending_character_cache_snapshot()
