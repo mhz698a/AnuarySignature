@@ -339,25 +339,172 @@ class CharacterCredentialBackupService:
             "replaced_backup_copies": removed_backup_copies,
         }
 
-    def backup_all(self, characters_by_year: dict[str, list[dict]]) -> dict[str, Any]:
-        """Back up all characters in cache without aborting the batch on one failure."""
-        results = []
-        failures = []
-        for year in sorted(characters_by_year, key=lambda value: int(value)):
-            for character in characters_by_year[year]:
-                try:
-                    results.append(self.backup_character(character))
-                except Exception as error:
-                    failures.append(
-                        {
-                            "year": year,
-                            "name": str(character.get("name") or ""),
-                            "alterego": str(character.get("alterego") or ""),
+    def discover_characters(
+        self,
+        characters_by_year: dict[str, list[dict]] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+        """Discover every character credential in the year album folders.
+
+        The on-disk scan is authoritative because the UI cache may be capped to
+        six displayed profiles per year. Only immediate character directories
+        and their __*.json credential files are inspected.
+        """
+        if not self.dependent_root.is_dir():
+            raise CharacterCredentialBackupError(
+                f"La unidad dependiente no está disponible: {self.dependent_root}"
+            )
+
+        discovered: dict[tuple[str, str, str], dict[str, Any]] = {}
+        failures: list[dict[str, str]] = []
+
+        try:
+            year_entries = sorted(
+                (
+                    entry for entry in self.dependent_root.iterdir()
+                    if entry.is_dir()
+                    and not entry.is_symlink()
+                    and re.fullmatch(r"\\d{4}", entry.name)
+                ),
+                key=lambda item: item.name,
+            )
+        except OSError as error:
+            raise CharacterCredentialBackupError(
+                f"No se pudieron leer los directorios de años: {error}"
+            ) from error
+
+        for year_entry in year_entries:
+            year = int(year_entry.name)
+            prefix = f"{max(0, year - 2003):02d}"
+            album_dir = year_entry / f"{prefix}. album"
+            if not album_dir.is_dir() or album_dir.is_symlink():
+                continue
+
+            try:
+                character_directories = sorted(
+                    (
+                        entry for entry in album_dir.iterdir()
+                        if entry.is_dir() and not entry.is_symlink()
+                    ),
+                    key=lambda item: item.name.casefold(),
+                )
+            except OSError as error:
+                failures.append({
+                    "year": year_entry.name,
+                    "name": "",
+                    "alterego": "",
+                    "error": f"No se pudo leer {album_dir}: {error}",
+                })
+                continue
+
+            for character_dir in character_directories:
+                folder_name = character_dir.name
+                prefix_to_check = f"{prefix}. "
+                if not folder_name.startswith(prefix_to_check):
+                    continue
+                parts = folder_name[len(prefix_to_check):].split(";")
+                if len(parts) != 5:
+                    continue
+
+                _, folder_alterego, folder_name_value, _, _ = parts
+                expected_json = character_dir / f"__{folder_name_value}__.json"
+                if expected_json.is_file():
+                    credential_path = expected_json
+                else:
+                    try:
+                        candidates = sorted(
+                            item for item in character_dir.glob("__*.json")
+                            if item.is_file()
+                        )
+                    except OSError as error:
+                        failures.append({
+                            "year": year_entry.name,
+                            "name": folder_name_value,
+                            "alterego": folder_alterego,
                             "error": str(error),
-                        }
-                    )
+                        })
+                        continue
+                    credential_path = candidates[0] if candidates else None
+
+                if credential_path is None:
+                    failures.append({
+                        "year": year_entry.name,
+                        "name": folder_name_value,
+                        "alterego": folder_alterego,
+                        "error": "No se encontró un JSON __*.json en la carpeta del personaje.",
+                    })
+                    continue
+
+                try:
+                    payload = json.loads(credential_path.read_text(encoding="utf-8"))
+                    char_data = payload.get("character_data")
+                    if not isinstance(char_data, dict):
+                        raise ValueError("El documento no contiene character_data.")
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                    failures.append({
+                        "year": year_entry.name,
+                        "name": folder_name_value,
+                        "alterego": folder_alterego,
+                        "error": f"Credencial inválida: {error}",
+                    })
+                    continue
+
+                character = dict(char_data)
+                character["year"] = year
+                character.setdefault("name", folder_name_value)
+                character.setdefault("alterego", folder_alterego)
+                character["character_json_path"] = str(credential_path.resolve())
+                identity = (
+                    str(year),
+                    str(character.get("name") or "").casefold(),
+                    str(character.get("alterego") or "").casefold(),
+                )
+                discovered[identity] = character
+
+        # Cache entries outside a recognized album folder remain eligible only
+        # when their credential JSON actually exists under the configured root.
+        for year, items in (characters_by_year or {}).items():
+            for cached in items:
+                raw_path = str(cached.get("character_json_path") or "").strip()
+                if not raw_path:
+                    continue
+                candidate = Path(raw_path).expanduser().resolve()
+                try:
+                    candidate.relative_to(self.dependent_root)
+                except ValueError:
+                    continue
+                if not candidate.is_file():
+                    continue
+                identity = (
+                    str(cached.get("year") or year),
+                    str(cached.get("name") or "").casefold(),
+                    str(cached.get("alterego") or "").casefold(),
+                )
+                discovered.setdefault(identity, dict(cached))
+
+        return list(discovered.values()), failures
+
+    def backup_all(self, characters_by_year: dict[str, list[dict]]) -> dict[str, Any]:
+        """Back up every discoverable on-disk character plus safe cache fallbacks."""
+        characters, discovery_failures = self.discover_characters(
+            characters_by_year
+        )
+        results = []
+        failures = list(discovery_failures)
+        for character in characters:
+            try:
+                results.append(self.backup_character(character))
+            except Exception as error:
+                failures.append(
+                    {
+                        "year": str(character.get("year") or ""),
+                        "name": str(character.get("name") or ""),
+                        "alterego": str(character.get("alterego") or ""),
+                        "error": str(error),
+                    }
+                )
         return {
-            "total": sum(len(items) for items in characters_by_year.values()),
+            "total": len(characters) + len(discovery_failures),
+            "discovered": len(characters),
             "backed_up": len(results),
             "failed": len(failures),
             "asset_warning_count": sum(
