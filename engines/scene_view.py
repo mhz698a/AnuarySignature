@@ -495,35 +495,41 @@ class VasculumApp(QMainWindow):
             CharacterCredentialBackupDialog,
         )
 
-        dialog = CharacterCredentialBackupDialog(
-            self.dependent_path,
-            self.character_manager._cache,
-            self,
-        )
-        dialog.exec()
-        if dialog.backup_result is not None:
-            self.structure_status_monitor.refresh_now()
-            result = dialog.backup_result
-            self.show_status_message(
-                f"Respaldo Structure: {result.get('backed_up', 0)} personajes, "
-                f"{result.get('failed', 0)} errores. Revisa PUSH para publicarlo.",
-                7000,
+        self.structure_status_monitor.pause()
+        try:
+            dialog = CharacterCredentialBackupDialog(
+                self.dependent_path,
+                self.character_manager._cache,
+                self,
             )
+            dialog.exec()
+            if dialog.backup_result is not None:
+                result = dialog.backup_result
+                self.show_status_message(
+                    f"Respaldo Structure: {result.get('backed_up', 0)} personajes, "
+                    f"{result.get('failed', 0)} errores. Revisa PUSH para publicarlo.",
+                    7000,
+                )
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
 
     def open_structure_orders_dialog(self):
         """Review and explicitly approve pending GitHub orders for the dependent unit."""
         from domain_visor.structure_orders_dialog import StructureOrdersDialog
 
-        dialog = StructureOrdersDialog(
-            dependent_path=self.dependent_path,
-            character_manager=self.character_manager,
-            parent=self,
-        )
-        dialog.exec()
-        if dialog.orders_applied:
-            self.character_manager.load_cache_file()
-            self.refresh_data()
-            self.structure_status_monitor.refresh_now()
+        self.structure_status_monitor.pause()
+        try:
+            dialog = StructureOrdersDialog(
+                dependent_path=self.dependent_path,
+                character_manager=self.character_manager,
+                parent=self,
+            )
+            dialog.exec()
+            if dialog.orders_applied:
+                self.character_manager.load_cache_file()
+                self.refresh_data()
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
 
     def generate_dependent_directory_report(self):
         """Generate the shallow directory-only report for the configured unit."""
