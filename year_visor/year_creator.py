@@ -10,6 +10,7 @@ from domain_visor.theme import Theme
 from year_visor.year_utils import calculate_id_package_default
 from character_visor.character_manager import CharacterManager
 from engines.structure_paths import get_structure_file
+from engines.dependent_directory_report import DependentDirectoryReportService
 
 class SeasonNameDialog(QDialog):
     """
@@ -358,6 +359,21 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
 
         with open(json_filepath, "w", encoding="utf-8") as f:
             json.dump(year_data, f, indent=4, ensure_ascii=False)
+
+        # Mantener actualizado el inventario superficial de directorios tras crear el año.
+        try:
+            DependentDirectoryReportService(
+                base_path,
+                get_structure_file("dependent_directory_report.json"),
+            ).generate_or_update()
+        except Exception as report_error:
+            QMessageBox.warning(
+                parent_window,
+                "Reporte de unidad dependiente",
+                "El año se creó correctamente, pero no se pudo actualizar el "
+                "reporte de directorios. Puedes generarlo desde Herramientas.\n\n"
+                f"{report_error}",
+            )
 
         return True
 
