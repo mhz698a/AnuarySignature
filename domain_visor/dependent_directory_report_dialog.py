@@ -99,7 +99,7 @@ class DependentDirectoryReportDialog(QDialog):
             f"Unidad dependiente:\n{self.base_path}\n\n"
             "Se registrarán directorios de años y hasta dos niveles de "
             "subcarpetas. También se identificarán las carpetas de personajes "
-            "dentro de <prefijo>. album y se anotarán los nombres y rutas relativas "
+            "dentro de la carpeta album de cada año y se anotarán los nombres y rutas relativas "
             "de sus archivos __*.json. No se abrirá ni copiará el contenido de "
             "las credenciales."
         )
