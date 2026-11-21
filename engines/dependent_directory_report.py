@@ -312,6 +312,10 @@ class DependentDirectoryReportService:
             item["credential_status"] == "ambiguous"
             for item in character_credentials
         )
+        additional_candidate_count = sum(
+            item["credential_status"] == "found_with_additional_candidates"
+            for item in character_credentials
+        )
 
         return {
             "schema_version": 2,
@@ -329,6 +333,7 @@ class DependentDirectoryReportService:
             "credential_found_count": found_count,
             "credential_missing_count": missing_count,
             "credential_ambiguous_count": ambiguous_count,
+            "credential_additional_candidates_count": additional_candidate_count,
             "directories": directories,
             "character_credentials": character_credentials,
         }
@@ -388,6 +393,9 @@ class DependentDirectoryReportService:
             "credential_found_count": report["credential_found_count"],
             "credential_missing_count": report["credential_missing_count"],
             "credential_ambiguous_count": report["credential_ambiguous_count"],
+            "credential_additional_candidates_count": (
+                report["credential_additional_candidates_count"]
+            ),
             "max_subfolder_levels_after_year": (
                 report["max_subfolder_levels_after_year"]
             ),
