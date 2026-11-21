@@ -62,6 +62,28 @@ nombre y alterego. Los campos admitidos son:
 Los cambios de ruta de imagen solo pueden referenciar imágenes que ya existan
 dentro de la unidad dependiente. Esta operación no descarga ni copia imágenes.
 
+### `replace_character_asset`
+
+Copia una imagen incluida por la orden en `__structure__/orders/assets/` a la
+carpeta del personaje y actualiza `icon_path` o `background_path`:
+
+```json
+{
+  "type": "replace_character_asset",
+  "target": {
+    "year": 2018,
+    "name": "emiru_aisaki",
+    "alterego": "cure_machérie"
+  },
+  "field": "icon_path",
+  "asset_path": "assets/emiru-new-icon.png"
+}
+```
+
+La imagen nueva recibe un nombre asociado al identificador de orden. La imagen
+anterior permanece en la unidad dependiente; no se elimina ni se mueve. Los
+formatos admitidos son PNG, JPG, JPEG, WEBP, GIF y BMP, hasta 25 MB.
+
 ### `update_dependent_json`
 
 Actualiza un JSON existente dentro de la unidad dependiente. Requiere:
