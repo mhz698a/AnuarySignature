@@ -143,9 +143,6 @@ class StructureStatusMonitor(QObject):
         if conflicts:
             label = f"CONFLICTS {len(conflicts)}"
             color = "#f48771"
-        elif branch != "main":
-            label = f"BRANCH {branch}"
-            color = "#e5a65e"
         elif behind and (ahead or local_changes):
             label = (
                 f"PULL {behind} · LOCAL {local_changes}"
