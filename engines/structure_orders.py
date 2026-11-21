@@ -366,10 +366,17 @@ class StructureOrderService:
         cached_character.update(validated["fields"])
         self.character_manager.save_cache_file()
 
-        backup_result = CharacterCredentialBackupService(
-            self.dependent_root,
-            structure_dir=self.structure_dir,
-        ).backup_character(cached_character)
+        backup_warning = ""
+        try:
+            backup_result = CharacterCredentialBackupService(
+                self.dependent_root,
+                structure_dir=self.structure_dir,
+            ).backup_character(cached_character)
+        except Exception as error:
+            # The dependent credential is already safely updated and its previous
+            # version is backed up in AppData; do not make the order retryable.
+            backup_result = None
+            backup_warning = str(error)
 
         return {
             "operation": validated["operation_type"],
@@ -379,6 +386,7 @@ class StructureOrderService:
             "backup": backup,
             "updated_fields": sorted(validated["fields"]),
             "character_backup": backup_result,
+            "character_backup_warning": backup_warning,
         }
 
     def _apply_json_update(self, validated: dict[str, Any]) -> dict[str, Any]:
