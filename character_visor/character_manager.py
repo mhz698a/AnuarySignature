@@ -6,6 +6,7 @@ import datetime
 from pathlib import Path
 
 from engines.structure_paths import get_structure_file
+from engines.dependent_directory_report import DependentDirectoryReportService
 
 class CharacterManager:
     """
@@ -207,6 +208,7 @@ class CharacterManager:
         current_year = datetime.date.today().year
 
         updated_cache = {}
+        created_credential_files = False
 
         total_years = max(1, current_year - first_year + 1)
         for year_index, year in enumerate(range(first_year, current_year + 1), start=1):
@@ -355,6 +357,7 @@ class CharacterManager:
                             try:
                                 with open(target_json, "w", encoding="utf-8") as jf:
                                     json.dump(self._credential_payload(char_data), jf, indent=4, ensure_ascii=False)
+                                created_credential_files = True
                             except Exception as e:
                                 print(f"Error guardando JSON en personaje: {e}")
 
@@ -381,6 +384,18 @@ class CharacterManager:
         # Actualizar la caché en memoria y guardarla en el archivo
         self._cache.update(updated_cache)
         self.save_cache_file()
+
+        if created_credential_files:
+            try:
+                DependentDirectoryReportService(
+                    self.base_path,
+                    get_structure_file("dependent_directory_report.json"),
+                ).generate_or_update()
+            except Exception as error:
+                print(
+                    "No se pudo actualizar el reporte de la unidad dependiente "
+                    f"después de crear credenciales: {error}"
+                )
 
     def get_characters_for_year(self, year: int) -> list:
         """
