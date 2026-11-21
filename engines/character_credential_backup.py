@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import unicodedata
 from datetime import datetime
@@ -339,6 +340,19 @@ class CharacterCredentialBackupService:
             "replaced_backup_copies": removed_backup_copies,
         }
 
+    @staticmethod
+    def _is_plain_directory(path: Path) -> bool:
+        """Exclude symlinks and Windows junction/reparse-point directories."""
+        try:
+            info = path.lstat()
+        except OSError:
+            return False
+        if stat.S_ISLNK(info.st_mode):
+            return False
+        if getattr(info, "st_file_attributes", 0) & 0x400:
+            return False
+        return stat.S_ISDIR(info.st_mode)
+
     def discover_characters(
         self,
         characters_by_year: dict[str, list[dict]] | None = None,
@@ -361,8 +375,7 @@ class CharacterCredentialBackupService:
             year_entries = sorted(
                 (
                     entry for entry in self.dependent_root.iterdir()
-                    if entry.is_dir()
-                    and not entry.is_symlink()
+                    if self._is_plain_directory(entry)
                     and re.fullmatch(r"\d{4}", entry.name)
                 ),
                 key=lambda item: item.name,
@@ -376,14 +389,14 @@ class CharacterCredentialBackupService:
             year = int(year_entry.name)
             prefix = f"{max(0, year - 2003):02d}"
             album_dir = year_entry / f"{prefix}. album"
-            if not album_dir.is_dir() or album_dir.is_symlink():
+            if not self._is_plain_directory(album_dir):
                 continue
 
             try:
                 character_directories = sorted(
                     (
                         entry for entry in album_dir.iterdir()
-                        if entry.is_dir() and not entry.is_symlink()
+                        if self._is_plain_directory(entry)
                     ),
                     key=lambda item: item.name.casefold(),
                 )
