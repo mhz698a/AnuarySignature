@@ -164,6 +164,17 @@ usual **Subir cambios** action.
 See [docs/STRUCTURE_ORDERS.md](docs/STRUCTURE_ORDERS.md) for the order schema
 and full workflow.
 
+## Synchronization branches and local credentials
+
+Structure synchronization works against the selected remote branch, including the
+source branch of a Pull Request hosted in the same repository. After pulling
+character metadata, use **Herramientas → Aplicar cambios de caché a credenciales
+locales** to compare Structure values against the actual local credential JSONs,
+review field differences, and apply selected changes with a pre-change backup.
+
+See [docs/STRUCTURE_BRANCH_AND_CREDENTIAL_SYNC.md](docs/STRUCTURE_BRANCH_AND_CREDENTIAL_SYNC.md)
+for the branch workflow, snapshot handling, safety checks and backup locations.
+
 ## Installation
 
 1. Clone the repository:
