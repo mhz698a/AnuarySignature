@@ -295,6 +295,19 @@ class CharacterIconItem(QGraphicsItem):
                             break
                     mgr.save_cache_file()
 
+            backup_result = None
+            backup_error = None
+            try:
+                from engines.character_credential_backup import (
+                    CharacterCredentialBackupService,
+                )
+                if mgr is not None:
+                    backup_result = CharacterCredentialBackupService(
+                        mgr.base_path
+                    ).backup_character(new_data)
+            except Exception as error:
+                backup_error = str(error)
+
             self.update()
 
             if view:
@@ -304,10 +317,22 @@ class CharacterIconItem(QGraphicsItem):
                     main_window.trigger_render()
                     show_status_message = getattr(main_window, "show_status_message", None)
                     if callable(show_status_message):
-                        show_status_message(
-                            "Credencial actualizada correctamente.",
-                            3000
-                        )
+                        if backup_error:
+                            show_status_message(
+                                "Credencial guardada localmente; el respaldo en "
+                                f"Structure falló: {backup_error}",
+                                10000,
+                            )
+                        else:
+                            show_status_message(
+                                "Credencial actualizada y respaldada en Structure. "
+                                "Pulsa Subir cambios para publicarla en GitHub.",
+                                6000,
+                            )
+
+                    monitor = getattr(main_window, "structure_status_monitor", None)
+                    if monitor is not None and backup_result is not None:
+                        monitor.refresh_now()
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._size, self._size)
