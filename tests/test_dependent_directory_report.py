@@ -485,3 +485,31 @@ def test_exclusion_preferences_are_preserved_across_service_instances(tmp_path):
     assert preferences["included_directories"] == [
         "2025/resources.local.personal"
     ]
+
+
+def test_default_exclusion_matches_a_numeric_folder_prefix(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    excluded_folder = (
+        dependent_root
+        / "2025"
+        / "22. resources.local.personal"
+        / "nested"
+    )
+    excluded_folder.mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    service.generate_or_update()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    reported_paths = {
+        item["relative_path"] for item in payload["directories"]
+    }
+    assert "2025\\22. resources.local.personal" not in reported_paths
+    assert "2025\\22. resources.local.personal\\nested" not in reported_paths
+    assert payload["excluded_directories"] == [
+        "2025/22. resources.local.personal"
+    ]
