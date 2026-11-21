@@ -190,3 +190,21 @@ def test_backup_discovery_finds_all_disk_credentials_beyond_ui_cache_limit(tmp_p
     assert {item["name"] for item in discovered} == {
         f"character_{index}" for index in range(1, 9)
     }
+
+
+def test_clearing_selected_asset_removes_only_its_archive_copy(tmp_path):
+    dependent, credential, icon, background, character = make_character(tmp_path)
+    service = make_service(tmp_path, dependent)
+    first = service.backup_character(character)
+    backup_dir = Path(first["backup_dir"])
+    archive_icon = backup_dir / "icon.png"
+
+    character["icon_path"] = ""
+    service.backup_character(character)
+
+    assert not archive_icon.exists()
+    assert icon.is_file()
+    manifest = json.loads(
+        (backup_dir / "backup_manifest.json").read_text(encoding="utf-8")
+    )
+    assert "icon" not in manifest["assets"]
