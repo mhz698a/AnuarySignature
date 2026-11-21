@@ -141,3 +141,93 @@ def test_pending_cache_snapshot_blocks_branch_change(tmp_path, monkeypatch):
 
     with pytest.raises(structure_sync.StructureSyncError, match="copia pendiente"):
         service._ensure_no_pending_character_cache_snapshot()
+
+
+
+def test_upload_pushes_to_the_selected_branch(tmp_path):
+    from types import SimpleNamespace
+
+    service = StructureSyncService(repo_root=tmp_path)
+    service._ensure_repository = lambda: None
+    service._ensure_expected_remote = lambda: "https://github.com/mhz698a/AnuarySignature-Structure.git"
+    service._current_branch = lambda: "phase-6/reviewed-character-colours"
+    service._fetch = lambda **kwargs: None
+    status = {
+        "branch": "phase-6/reviewed-character-colours",
+        "ahead": 1,
+        "behind": 0,
+        "local_changes": [],
+        "local_change_count": 0,
+        "conflicts": [],
+    }
+    service._inspect_after_fetch = lambda: status
+    service._revision_counts = lambda branch=None: (1, 0)
+    commands = []
+
+    def fake_run_git(*arguments, **kwargs):
+        commands.append(arguments)
+        return SimpleNamespace(stdout="", returncode=0)
+
+    service._run_git = fake_run_git
+
+    result = service.upload_changes()
+
+    assert result["updated"] is True
+    assert (
+        "push",
+        "origin",
+        "HEAD:refs/heads/phase-6/reviewed-character-colours",
+    ) in commands
+
+
+def test_download_merges_the_selected_branch_only(tmp_path):
+    from types import SimpleNamespace
+
+    service = StructureSyncService(repo_root=tmp_path)
+    service._ensure_repository = lambda: None
+    service._ensure_expected_remote = lambda: "https://github.com/mhz698a/AnuarySignature-Structure.git"
+    service._current_branch = lambda: "phase-6/reviewed-character-colours"
+    service._ensure_no_pending_character_cache_snapshot = lambda: None
+    service._fetch = lambda **kwargs: None
+    statuses = [
+        {
+            "branch": "phase-6/reviewed-character-colours",
+            "head": "local-head",
+            "ahead": 0,
+            "behind": 2,
+            "local_changes": [],
+            "local_change_count": 0,
+            "conflicts": [],
+        },
+        {
+            "branch": "phase-6/reviewed-character-colours",
+            "head": "remote-head",
+            "ahead": 0,
+            "behind": 0,
+            "local_changes": [],
+            "local_change_count": 0,
+            "conflicts": [],
+        },
+    ]
+    service._inspect_after_fetch = lambda: statuses.pop(0)
+    service.backups.create_backup = lambda **kwargs: tmp_path / "before-download.zip"
+    service._capture_character_cache_snapshot = lambda: {
+        "snapshot_path": str(tmp_path / "pending.json"),
+        "status": "captured",
+    }
+    commands = []
+
+    def fake_run_git(*arguments, **kwargs):
+        commands.append(arguments)
+        return SimpleNamespace(stdout="", returncode=0)
+
+    service._run_git = fake_run_git
+
+    result = service.download_updates()
+
+    assert result["updated"] is True
+    assert (
+        "merge",
+        "--ff-only",
+        "origin/phase-6/reviewed-character-colours",
+    ) in commands
