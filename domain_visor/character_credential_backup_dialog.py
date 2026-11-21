@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -64,6 +64,77 @@ class SingleCharacterBackupWorker(QThread):
             self.completed.emit(service.backup_character(self.character))
         except Exception as error:
             self.failed.emit(str(error))
+
+
+class SingleCharacterBackupUiBridge(QObject):
+    """Marshal one-character backup results back to the main Qt thread."""
+
+    def __init__(self, main_window, worker, parent=None):
+        super().__init__(parent or main_window)
+        self.main_window = main_window
+        self.worker = worker
+
+    @pyqtSlot(object)
+    def on_completed(self, result):
+        show_status = getattr(self.main_window, "show_status_message", None)
+        if not callable(show_status):
+            return
+
+        warnings = result.get("warnings", [])
+        if warnings:
+            show_status(
+                "Respaldo Structure parcial: "
+                + "; ".join(warnings)
+                + ". Revisa antes de subirlo.",
+                10000,
+            )
+        else:
+            show_status(
+                "Credencial e imágenes seleccionadas respaldadas "
+                "en Structure. Pulsa Subir cambios para publicarlas.",
+                7000,
+            )
+
+    @pyqtSlot(str)
+    def on_failed(self, message):
+        show_status = getattr(self.main_window, "show_status_message", None)
+        if callable(show_status):
+            show_status(
+                "Credencial guardada localmente, pero falló el "
+                f"respaldo en Structure: {message}",
+                10000,
+            )
+
+    @pyqtSlot()
+    def on_finished(self):
+        workers = getattr(
+            self.main_window,
+            "_character_backup_workers",
+            set(),
+        )
+        workers.discard(self.worker)
+
+        bridges = getattr(
+            self.main_window,
+            "_character_backup_bridges",
+            set(),
+        )
+        bridges.discard(self)
+
+        if (
+            not workers
+            and not getattr(self.main_window, "_closing_application", False)
+        ):
+            monitor = getattr(
+                self.main_window,
+                "structure_status_monitor",
+                None,
+            )
+            if monitor is not None:
+                monitor.resume(refresh_immediately=True)
+
+        self.worker.deleteLater()
+        self.deleteLater()
 
 
 class CharacterCredentialBackupDialog(QDialog):
