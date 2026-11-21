@@ -229,9 +229,7 @@ class StructureOrdersDialog(QDialog):
             QMessageBox.ButtonRole.AcceptRole,
         )
         confirmation.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-        confirmation.setDefaultButton(confirmation.button(
-            QMessageBox.StandardButton.Cancel
-        ) if confirmation.button(QMessageBox.StandardButton.Cancel) else None)
+        confirmation.setDefaultButton(apply_button)
         confirmation.exec()
         if confirmation.clickedButton() is not apply_button:
             return
