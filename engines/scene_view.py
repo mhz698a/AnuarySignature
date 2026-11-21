@@ -619,15 +619,25 @@ class VasculumApp(QMainWindow):
 
         dialog = DependentDirectoryReportDialog(self.dependent_path, self)
         dialog.exec()
+
+        if dialog.preferences_saved:
+            self.structure_status_monitor.refresh_now()
+
         if dialog.report_generated:
             result = dialog.report_result or {}
-            self.structure_status_monitor.refresh_now()
             self.show_status_message(
                 "Reporte de unidad dependiente actualizado: "
                 f"{result.get('directory_count', 0)} directorios, "
+                f"{result.get('excluded_directory_count', 0)} carpetas excluidas, "
                 f"{result.get('character_count', 0)} personajes y "
                 f"{result.get('credential_found_count', 0)} credenciales localizadas.",
-                5000,
+                7000,
+            )
+        elif dialog.preferences_saved:
+            self.show_status_message(
+                "Las preferencias de exclusión se guardaron en Structure. "
+                "El reporte anterior se conserva porque no se completó la generación.",
+                8000,
             )
 
     def manage_verbose_resolutions(self):
