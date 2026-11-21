@@ -301,7 +301,7 @@ class CharacterCacheSyncService:
                     continue
 
                 fields: dict[str, Any] = {}
-                for field_name in SYNC_FIELDS:
+                for field_name in sorted(SYNC_FIELDS):
                     if field_name not in cached_character:
                         continue
                     fields[field_name] = self._normalize_field(
@@ -493,12 +493,38 @@ class CharacterCacheSyncService:
                     f"{year}/{target['name']}: {error}"
                 )
 
+        history_saved = True
         history["schema_version"] = 1
         history["batches"].append(batch_record)
-        _atomic_write_json(self.history_path, history)
+        try:
+            _atomic_write_json(self.history_path, history)
+        except OSError as error:
+            history_saved = False
+            batch_record["issues"].append(
+                "Las credenciales modificadas ya fueron escritas y respaldadas, "
+                "pero no se pudo guardar el historial local de esta operación: "
+                f"{error}. Conserva los respaldos y revisa las credenciales antes "
+                "de volver a intentar la sincronización."
+            )
 
-        remaining = self.preview_changes()
-        if self.has_pending_snapshot() and not remaining:
+        remaining: list[dict[str, Any]] | None
+        remaining_check_error = ""
+        try:
+            remaining = self.preview_changes()
+        except (OSError, CharacterCacheSyncError) as error:
+            remaining = None
+            remaining_check_error = str(error)
+            batch_record["issues"].append(
+                "No se pudo volver a comparar el caché después de la aplicación: "
+                f"{error}"
+            )
+
+        if (
+            history_saved
+            and remaining is not None
+            and self.has_pending_snapshot()
+            and not remaining
+        ):
             self.pending_snapshot_path.unlink(missing_ok=True)
 
         return {
@@ -506,6 +532,8 @@ class CharacterCacheSyncService:
             "applied_characters": len(batch_record["applied_characters"]),
             "applied_fields": applied_fields,
             "issues": batch_record["issues"],
-            "remaining_changes": len(remaining),
+            "history_saved": history_saved,
+            "remaining_changes": len(remaining) if remaining is not None else None,
+            "remaining_check_error": remaining_check_error,
             "backup_root": str(self.backup_root / batch_id),
         }
