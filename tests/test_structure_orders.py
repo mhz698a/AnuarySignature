@@ -1,4 +1,6 @@
 import json
+
+import pytest
 from pathlib import Path
 
 from engines.structure_orders import StructureOrderError, StructureOrderService
@@ -365,3 +367,54 @@ def test_order_target_lookup_finds_character_outside_six_profile_ui_cache(tmp_pa
     assert character["name"] == "character_7"
     assert character["alterego"] == "cure_7"
     assert credential.is_file()
+
+
+def test_symlinked_order_assets_are_rejected(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    assets = structure_dir / "orders" / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    external_image = tmp_path / "outside.png"
+    external_image.write_bytes(b"external-image")
+    linked_asset = assets / "external.png"
+    try:
+        linked_asset.symlink_to(external_image)
+    except (OSError, NotImplementedError):
+        pytest.skip("File symlinks are unavailable in this environment.")
+
+    order = make_order({
+        "type": "replace_character_asset",
+        "target": {
+            "year": 2018,
+            "name": "emiru_aisaki",
+            "alterego": "cure_machérie",
+        },
+        "field": "icon_path",
+        "asset_path": "assets/external.png",
+    }, order_id="order-image-link")
+
+    with pytest.raises(StructureOrderError, match="archivo regular"):
+        service.validate_order(order)
+
+
+def test_symlinked_pending_order_files_are_not_loaded(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    pending = structure_dir / "orders" / "pending"
+    external_order = tmp_path / "external-order.json"
+    external_order.write_text(
+        json.dumps(make_order({
+            "type": "create_directory",
+            "path": "2018/15. linked-order",
+        }, order_id="order-link-001")),
+        encoding="utf-8",
+    )
+    link_path = pending / "linked.json"
+    try:
+        link_path.symlink_to(external_order)
+    except (OSError, NotImplementedError):
+        pytest.skip("File symlinks are unavailable in this environment.")
+
+    orders = service.load_pending_orders()
+
+    assert len(orders) == 1
+    assert orders[0]["validated"] is None
+    assert "sin enlaces simbólicos" in orders[0]["error"]
