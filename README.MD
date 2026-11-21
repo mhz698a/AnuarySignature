@@ -68,25 +68,26 @@ AnuarySignature can generate an inventory of the configured dependent drive,
 including directory structure and references to character credential files.
 The report is stored in the private Structure checkout at:
 
-\`\`\`text
+```text
 __structure__/dependent_directory_report.json
-\`\`\`
+```
 
 The directory inventory includes four-digit year directories and at most two
-directory levels below each year. For example, it records \`2009\`,
-\`2009\\\\06. music\`, and \`2009\\\\06. music\\\\06. s.rt.example\`.
+directory levels below each year. For example, it records `2009`,
+`2009\06. music`, and `2009\06. music\06. s.rt.example`.
 The report also scans each year's album folder identified by the year prefix and
 recognizes character folders using AnuarySignature's existing naming convention.
 It records character identity, relative folder paths, credential filenames and
 relative credential paths. Missing credentials are marked as missing; multiple
-\`__*.json\` candidates are marked as ambiguous unless the standard
-\`__CharacterName__.json\` filename identifies the main credential.
+`__*.json` candidates are marked as ambiguous unless the standard
+`__CharacterName__.json` filename identifies the main credential.
 
 When opening the report dialog, AnuarySignature lists each year and its direct
 child folders. The user can mark individual folders to exclude their entire
-subtree. \`resources.local.personal\` is excluded by default in every year; this
-can be overridden for a particular year. Exclusion preferences are stored in
-\`__structure__/dependent_directory_report_settings.json\`.
+subtree. `resources.local.personal` is excluded by default in every year, both
+with its exact name and when preceded by a numeric prefix. This default can be
+overridden for a particular year. Exclusion preferences are stored in
+`__structure__/dependent_directory_report_settings.json`.
 
 Opening the dialog does not generate the report. The scan starts only after
 pressing **Generar reporte**. During generation, the dialog displays the current
