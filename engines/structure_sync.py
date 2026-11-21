@@ -282,7 +282,7 @@ class StructureSyncService:
         pending_path = self._pending_character_cache_snapshot_path()
         content = cache_path.read_bytes()
         pending_path.parent.mkdir(parents=True, exist_ok=True)
-        if pending_path.exists():
+        if pending_path.exists() or pending_path.is_symlink():
             try:
                 pending_info = pending_path.lstat()
             except OSError as error:
