@@ -340,10 +340,16 @@ class CharacterCacheSyncDialog(QDialog):
         elif operation == "apply":
             self.apply_result = result
             self.applied = result.get("applied_fields", 0) > 0
+            remaining = result.get("remaining_changes")
+            remaining_text = (
+                str(remaining) if remaining is not None else "sin verificar"
+            )
             message = (
                 f"Personajes modificados: {result.get('applied_characters', 0)}\n"
                 f"Campos aplicados: {result.get('applied_fields', 0)}\n"
-                f"Cambios restantes: {result.get('remaining_changes', 0)}\n"
+                f"Cambios restantes: {remaining_text}\n"
+                f"Historial local guardado: "
+                f"{'sí' if result.get('history_saved', True) else 'no'}\n"
                 f"Respaldo: {result.get('backup_root', '')}"
             )
             if result.get("issues"):
