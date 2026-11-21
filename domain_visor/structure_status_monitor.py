@@ -20,7 +20,11 @@ class _StructureStatusWorker(QThread):
 
     def run(self):
         try:
-            self.completed.emit(self.service.check_for_updates())
+            self.completed.emit(
+                self.service.check_for_updates(
+                    fetch_timeout=StructureStatusMonitor.FETCH_TIMEOUT_SECONDS
+                )
+            )
         except Exception as error:
             self.failed.emit(str(error))
 
@@ -32,6 +36,7 @@ class StructureStatusMonitor(QObject):
     idle = pyqtSignal()
 
     DEFAULT_INTERVAL_MS = 180_000
+    FETCH_TIMEOUT_SECONDS = 15
 
     def __init__(
         self,
