@@ -75,7 +75,7 @@ __structure__/dependent_directory_report.json
 The directory inventory includes four-digit year directories and at most two
 directory levels below each year. For example, it records `2009`,
 `2009\\06. music`, and `2009\\06. music\\06. s.rt.example`.
-The report also scans each year's `<prefix>. album` folder and recognizes
+The report also scans each year's `album` folder identified by the year prefix and recognizes
 character folders using AnuarySignature's existing naming convention. It records
 the character identity, the relative folder path, the credential filename and
 the credential's relative path. Missing credentials are marked as missing;
