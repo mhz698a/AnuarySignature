@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -104,6 +105,30 @@ class StructureOrderService:
             Path(backup_root)
             if backup_root is not None
             else app_data_root / "Backups" / "DependentOrders"
+        )
+
+    @staticmethod
+    def _is_plain_directory(path: Path) -> bool:
+        try:
+            info = path.lstat()
+        except OSError:
+            return False
+        return (
+            stat.S_ISDIR(info.st_mode)
+            and not stat.S_ISLNK(info.st_mode)
+            and not bool(getattr(info, "st_file_attributes", 0) & 0x400)
+        )
+
+    @staticmethod
+    def _is_plain_file(path: Path) -> bool:
+        try:
+            info = path.lstat()
+        except OSError:
+            return False
+        return (
+            stat.S_ISREG(info.st_mode)
+            and not stat.S_ISLNK(info.st_mode)
+            and not bool(getattr(info, "st_file_attributes", 0) & 0x400)
         )
 
     def _load_state(self) -> dict[str, Any]:
@@ -267,15 +292,26 @@ class StructureOrderService:
             asset_relative = self._safe_relative_path(
                 operation.get("asset_path", "")
             )
-            if not asset_relative.parts or asset_relative.parts[0] != "assets":
+            if len(asset_relative.parts) != 2 or asset_relative.parts[0] != "assets":
                 raise StructureOrderError(
-                    "La imagen de la orden debe estar bajo orders/assets/."
+                    "La ruta de imagen debe tener el formato assets/<archivo>."
                 )
-            asset_root = (self.orders_root / "assets").resolve()
-            source_path = (self.orders_root / Path(*asset_relative.parts)).resolve()
-            if not source_path.is_relative_to(asset_root) or not source_path.is_file():
+            if (
+                not self._is_plain_directory(self.orders_root)
+                or not self._is_plain_directory(self.orders_root / "assets")
+            ):
                 raise StructureOrderError(
-                    "No se encontró la imagen dentro de la carpeta de recursos de órdenes."
+                    "La carpeta orders/assets no es un directorio regular."
+                )
+            source_candidate = self.orders_root / Path(*asset_relative.parts)
+            if not self._is_plain_file(source_candidate):
+                raise StructureOrderError(
+                    "El recurso de imagen debe ser un archivo regular, sin enlaces simbólicos."
+                )
+            source_path = source_candidate.resolve()
+            if not source_path.is_relative_to(self.orders_root.resolve()):
+                raise StructureOrderError(
+                    "La imagen resuelta sale del repositorio local de Structure."
                 )
             if (
                 source_path.suffix.lower() not in ALLOWED_IMAGE_EXTENSIONS
@@ -530,6 +566,16 @@ class StructureOrderService:
         }
 
     def _write_result(self, order_id: str, payload: dict[str, Any]) -> None:
+        if not self._is_plain_directory(self.orders_root):
+            raise StructureOrderError(
+                "El directorio raíz de órdenes no es un directorio regular."
+            )
+        if not self.results_root.exists():
+            self.results_root.mkdir(parents=True, exist_ok=False)
+        if not self._is_plain_directory(self.results_root):
+            raise StructureOrderError(
+                "El directorio de resultados no es un directorio regular."
+            )
         result_path = self.results_root / f"{order_id}.json"
         if result_path.exists():
             raise StructureOrderError(
@@ -624,13 +670,24 @@ class StructureOrderService:
         if not isinstance(character_data, dict):
             raise StructureOrderError("La credencial no contiene character_data.")
 
-        asset_path = (self.orders_root / Path(*PurePosixPath(
-            validated["asset_path"]
-        ).parts)).resolve()
-        asset_root = (self.orders_root / "assets").resolve()
-        if not asset_path.is_relative_to(asset_root) or not asset_path.is_file():
+        asset_relative = PurePosixPath(validated["asset_path"])
+        if (
+            len(asset_relative.parts) != 2
+            or asset_relative.parts[0] != "assets"
+            or not self._is_plain_directory(self.orders_root / "assets")
+        ):
             raise StructureOrderError(
-                "La imagen dejó de estar disponible dentro de orders/assets."
+                "La carpeta de recursos de órdenes ya no es válida."
+            )
+        asset_candidate = self.orders_root / Path(*asset_relative.parts)
+        if not self._is_plain_file(asset_candidate):
+            raise StructureOrderError(
+                "La imagen de la orden ya no es un archivo regular."
+            )
+        asset_path = asset_candidate.resolve()
+        if not asset_path.is_relative_to(self.orders_root.resolve()):
+            raise StructureOrderError(
+                "La imagen de la orden sale del repositorio de Structure."
             )
         extension = asset_path.suffix.lower()
         size = asset_path.stat().st_size
@@ -794,7 +851,9 @@ class StructureOrderService:
 
     def load_pending_orders(self) -> list[dict[str, Any]]:
         """Return unprocessed order JSON files, including validation errors."""
-        if not self.pending_root.is_dir():
+        if not self._is_plain_directory(self.orders_root):
+            return []
+        if not self._is_plain_directory(self.pending_root):
             return []
 
         state = self._load_state()
@@ -803,6 +862,14 @@ class StructureOrderService:
             self.pending_root.glob("*.json"),
             key=lambda path: path.name.casefold(),
         ):
+            if not self._is_plain_file(order_path):
+                orders.append({
+                    "path": order_path,
+                    "order": {},
+                    "validated": None,
+                    "error": "El archivo de orden debe ser un JSON regular, sin enlaces simbólicos.",
+                })
+                continue
             try:
                 order = json.loads(order_path.read_text(encoding="utf-8"))
                 validated = self.validate_order(order)
