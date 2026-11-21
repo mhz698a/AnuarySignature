@@ -119,10 +119,18 @@ class CharacterCacheSyncService:
         return payload
 
     def capture_pending_snapshot(self) -> dict[str, Any]:
-        """Preserve the just-downloaded cache outside the checkout before startup scans rewrite it."""
+        """Preserve the current cache without overwriting a different pending snapshot."""
         payload = self._read_cache(self.cache_path)
         raw = self.cache_path.read_bytes()
-        _atomic_write_bytes(self.pending_snapshot_path, raw)
+        if self.pending_snapshot_path.exists():
+            existing = self.pending_snapshot_path.read_bytes()
+            if existing != raw:
+                raise CharacterCacheSyncError(
+                    "Ya existe otra versión pendiente de aplicar de characters_cache.json. "
+                    "Se conservó intacta y no se sobrescribió."
+                )
+        else:
+            _atomic_write_bytes(self.pending_snapshot_path, raw)
         return {
             "snapshot_path": str(self.pending_snapshot_path),
             "year_count": len(payload),
@@ -130,6 +138,17 @@ class CharacterCacheSyncService:
                 len(items) for items in payload.values() if isinstance(items, list)
             ),
         }
+
+    def discard_pending_snapshot(self) -> bool:
+        """Discard only the local review snapshot; dependent credentials and Git files are untouched."""
+        if not self.pending_snapshot_path.exists():
+            return False
+        if not self._is_plain_file(self.pending_snapshot_path):
+            raise CharacterCacheSyncError(
+                "El snapshot pendiente no es un archivo regular y no se eliminará."
+            )
+        self.pending_snapshot_path.unlink()
+        return True
 
     def ensure_pending_snapshot(self) -> None:
         """Use an existing deferred snapshot, or capture the current cache for manual review."""
