@@ -139,15 +139,17 @@ user downloads Structure and opens
 No order runs automatically. The application validates the operation and
 target, previews the affected character/path, and requires an explicit
 **Aplicar orden** confirmation. Supported operations are:
-`update_character_credential`, `update_dependent_json`, and
+`update_character_credential`, `replace_character_asset`, `update_dependent_json`, and
 `create_directory`. Existing JSON files receive a pre-change backup under
 `%LOCALAPPDATA%\\AnuarySignature\\Backups\\DependentOrders`. Applied order
 IDs are tracked locally so they cannot be repeated on the same computer.
 
 There are no delete, move, rename, shell, script or arbitrary-code operations.
-An order cannot write outside the configured dependent drive. Changing an
-image path requires that the image already exist inside the dependent drive;
-the order system does not download or copy image files in this version.
+An order cannot write outside the configured dependent drive. Changing an image path directly requires that the referenced image already exist
+inside the dependent drive. The separate `replace_character_asset` operation can
+copy an image delivered in `__structure__/orders/assets/` into a character folder
+with a new order-specific filename; it preserves the previous local image and
+updates only the selected `icon_path` or `background_path`.
 Application results are written to
 `__structure__/orders/results/<order-id>.json` and can be published with the
 usual **Subir cambios** action.
