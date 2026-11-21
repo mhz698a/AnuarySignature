@@ -270,6 +270,14 @@ class CharacterCredentialBackupService:
         ):
             raw_asset = str(character.get(field_name) or "").strip()
             if not raw_asset:
+                old_asset = self._safe_previous_asset_path(
+                    backup_dir,
+                    previous_manifest,
+                    slot,
+                )
+                asset_records.pop(slot, None)
+                if old_asset is not None:
+                    replaced_backup_assets.append(old_asset)
                 continue
             source_asset = self._resolve_asset(raw_asset, credential_path)
             if source_asset is None:
