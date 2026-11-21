@@ -165,14 +165,30 @@ class DependentDirectoryReportService:
                 for candidate in candidates
             ]
 
-            status = (
-                "missing"
-                if not credential_files
-                else "found"
-                if len(credential_files) == 1
-                else "ambiguous"
+            expected_filename = f"__{identity['name']}__.json".casefold()
+            preferred_index = next(
+                (
+                    index for index, candidate in enumerate(candidates)
+                    if candidate.name.casefold() == expected_filename
+                ),
+                None,
             )
-            selected = credential_files[0] if status == "found" else None
+            if preferred_index is not None:
+                status = (
+                    "found"
+                    if len(credential_files) == 1
+                    else "found_with_additional_candidates"
+                )
+                selected = credential_files[preferred_index]
+            elif len(credential_files) == 1:
+                status = "found"
+                selected = credential_files[0]
+            elif credential_files:
+                status = "ambiguous"
+                selected = None
+            else:
+                status = "missing"
+                selected = None
 
             records.append(
                 {
@@ -285,7 +301,7 @@ class DependentDirectoryReportService:
             len(item["credential_files"]) for item in character_credentials
         )
         found_count = sum(
-            item["credential_status"] == "found"
+            item["credential_status"] in {"found", "found_with_additional_candidates"}
             for item in character_credentials
         )
         missing_count = sum(
