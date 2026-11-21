@@ -582,11 +582,15 @@ class VasculumApp(QMainWindow):
             dialog.exec()
             if dialog.applied:
                 result = dialog.apply_result or {}
+                remaining = result.get("remaining_changes")
+                remaining_text = (
+                    str(remaining) if remaining is not None else "sin verificar"
+                )
                 self.show_status_message(
                     f"Credenciales locales actualizadas: "
                     f"{result.get('applied_characters', 0)} personajes, "
                     f"{result.get('applied_fields', 0)} campos. "
-                    f"Cambios pendientes: {result.get('remaining_changes', 0)}. "
+                    f"Cambios pendientes: {remaining_text}. "
                     "Se creó un respaldo previo en AppData.",
                     7000,
                 )
