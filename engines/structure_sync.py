@@ -261,8 +261,20 @@ class StructureSyncService:
     def _capture_character_cache_snapshot(self) -> dict[str, str] | None:
         """Preserve a checked-out cache before later scans or branch changes can rewrite it."""
         cache_path = get_structure_dir() / "characters_cache.json"
-        if not cache_path.is_file():
+        try:
+            cache_info = cache_path.lstat()
+        except OSError:
             return None
+        import stat
+
+        if (
+            not stat.S_ISREG(cache_info.st_mode)
+            or stat.S_ISLNK(cache_info.st_mode)
+            or bool(getattr(cache_info, "st_file_attributes", 0) & 0x400)
+        ):
+            raise StructureSyncError(
+                "characters_cache.json no es un archivo regular. No se capturó el snapshot."
+            )
         pending_path = self._pending_character_cache_snapshot_path()
         content = cache_path.read_bytes()
         pending_path.parent.mkdir(parents=True, exist_ok=True)
