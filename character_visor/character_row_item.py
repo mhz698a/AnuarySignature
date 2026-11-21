@@ -301,10 +301,13 @@ class CharacterIconItem(QGraphicsItem):
                 from engines.character_credential_backup import (
                     CharacterCredentialBackupService,
                 )
-                if mgr is not None:
-                    backup_result = CharacterCredentialBackupService(
-                        mgr.base_path
-                    ).backup_character(new_data)
+                if mgr is None:
+                    raise RuntimeError(
+                        "No se encontró el gestor de personajes para respaldar la credencial."
+                    )
+                backup_result = CharacterCredentialBackupService(
+                    mgr.base_path
+                ).backup_character(new_data)
             except Exception as error:
                 backup_error = str(error)
 
@@ -323,10 +326,18 @@ class CharacterIconItem(QGraphicsItem):
                                 f"Structure falló: {backup_error}",
                                 10000,
                             )
+                        elif backup_result and backup_result.get("warnings"):
+                            show_status_message(
+                                "Credencial respaldada en Structure, pero alguna "
+                                "imagen no pudo copiarse: "
+                                + "; ".join(backup_result["warnings"])
+                                + ". Revisa el respaldo antes de subirlo.",
+                                10000,
+                            )
                         else:
                             show_status_message(
-                                "Credencial actualizada y respaldada en Structure. "
-                                "Pulsa Subir cambios para publicarla en GitHub.",
+                                "Credencial y recursos seleccionados respaldados en "
+                                "Structure. Pulsa Subir cambios para publicarlos en GitHub.",
                                 6000,
                             )
 
