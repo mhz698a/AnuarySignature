@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from PyQt6.QtCore import QThread, Qt, pyqtSignal
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from domain_visor.theme import Theme
+from domain_visor.structure_github_token_dialog import StructureGitHubTokenDialog
 from engines.structure_sync import StructureSyncService
 
 
@@ -41,6 +43,7 @@ class StructureSyncDialog(QDialog):
     def __init__(self, parent=None, service=None):
         super().__init__(parent)
         self.service = service or StructureSyncService()
+        self.credential_store = self.service.credentials
         self.worker = None
         self.current_status = None
         self.structure_changed = False
@@ -87,6 +90,7 @@ class StructureSyncDialog(QDialog):
 
         self._build_ui()
         self._refresh_backup_list()
+        self._refresh_credentials_status()
         self._run_operation("check")
 
     def _build_ui(self):
@@ -113,6 +117,16 @@ class StructureSyncDialog(QDialog):
         self.details_label.setWordWrap(True)
         self.details_label.setStyleSheet("color: #bdbdbd;")
         layout.addWidget(self.details_label)
+
+        credential_row = QHBoxLayout()
+        self.credentials_label = QLabel()
+        self.credentials_label.setWordWrap(True)
+        self.credentials_label.setStyleSheet("color: #bdbdbd;")
+        credential_row.addWidget(self.credentials_label, 1)
+        self.manage_token_button = QPushButton("Administrar token")
+        self.manage_token_button.clicked.connect(self._open_token_dialog)
+        credential_row.addWidget(self.manage_token_button)
+        layout.addLayout(credential_row)
 
         sync_title = QLabel("Sincronización")
         sync_title.setStyleSheet("font-weight: bold;")
@@ -173,9 +187,11 @@ class StructureSyncDialog(QDialog):
             self.create_backup_button.setEnabled(False)
             self.restore_backup_button.setEnabled(False)
             self.backup_combo.setEnabled(False)
+            self.manage_token_button.setEnabled(False)
             self.close_button.setEnabled(False)
             return
 
+        self.manage_token_button.setEnabled(True)
         self.check_button.setEnabled(True)
         self.create_backup_button.setEnabled(True)
         self.backup_combo.setEnabled(True)
@@ -199,6 +215,57 @@ class StructureSyncDialog(QDialog):
             and (ahead > 0 or local_changes > 0) and not conflicts
         )
         self.restore_backup_button.setEnabled(self.backup_combo.count() > 0)
+
+    def _refresh_credentials_status(self):
+        try:
+            credentials = self.credential_store.get_credentials()
+            metadata = self.credential_store.get_metadata()
+        except Exception as error:
+            self.credentials_label.setText(
+                f"No se pudo leer el token de Windows: {error}"
+            )
+            return
+
+        if not credentials:
+            self.credentials_label.setText(
+                "Token personal: no configurado. La sincronización intentará "
+                "usar Git Credential Manager si está disponible."
+            )
+            return
+
+        username = metadata.get("username") or credentials[0]
+        expires_on = metadata.get("expires_on")
+        if not expires_on:
+            expiry_text = "sin fecha de expiración registrada"
+        else:
+            try:
+                expiration = date.fromisoformat(expires_on)
+                days_remaining = (expiration - date.today()).days
+                formatted = expiration.strftime("%d/%m/%Y")
+                if days_remaining < 0:
+                    expiry_text = (
+                        f"fecha registrada {formatted} (ya vencida)"
+                    )
+                elif days_remaining == 0:
+                    expiry_text = f"vence hoy ({formatted})"
+                elif days_remaining <= 14:
+                    expiry_text = (
+                        f"vence el {formatted} (faltan {days_remaining} días)"
+                    )
+                else:
+                    expiry_text = f"vence el {formatted}"
+            except (TypeError, ValueError):
+                expiry_text = "fecha de expiración no válida"
+
+        self.credentials_label.setText(
+            f"Token configurado para @{username} · {expiry_text}"
+        )
+
+    def _open_token_dialog(self):
+        dialog = StructureGitHubTokenDialog(self.credential_store, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._refresh_credentials_status()
+            self._run_operation("check")
 
     def _run_operation(self, operation: str, argument=None):
         if self.worker is not None and self.worker.isRunning():
@@ -272,6 +339,7 @@ class StructureSyncDialog(QDialog):
             )
 
     def _on_operation_failed(self, operation: str, message: str):
+        self._refresh_credentials_status()
         self.operation_label.setText(f"No se pudo completar la operación: {message}")
         if operation == "check":
             self.status_label.setText("No se pudo comprobar el estado remoto.")
