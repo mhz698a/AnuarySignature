@@ -20,7 +20,7 @@ REPORT_FILENAME = "dependent_directory_report.json"
 MAX_SUBFOLDER_LEVELS_AFTER_YEAR = 2
 _YEAR_DIRECTORY_PATTERN = re.compile(r"^\d{4}$")
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
-_CREDENTIAL_FILENAME_PATTERN = re.compile(r"^__.+__\.json$", re.IGNORECASE)
+_CREDENTIAL_FILENAME_PATTERN = re.compile(r"^__.*\.json$", re.IGNORECASE)
 
 
 class DependentDirectoryReportError(RuntimeError):
