@@ -401,7 +401,11 @@ class StructureOrderService:
             return False
         return stat.S_ISDIR(info.st_mode)
 
-    def _find_character_credential(self, target: dict[str, Any]) -> tuple[Path, dict]:
+    def _find_character_credential(
+        self,
+        target: dict[str, Any],
+        cache_records: list[dict[str, Any]] | None = None,
+    ) -> tuple[Path, dict]:
         """Resolve a character directly on disk; the six-item UI cache is not authoritative."""
         year = int(target["year"])
         year_root = self.dependent_root / str(year)
@@ -528,10 +532,15 @@ class StructureOrderService:
                 "La credencial del personaje está fuera de la unidad dependiente."
             )
 
+        candidate_records = (
+            cache_records
+            if cache_records is not None
+            else self.character_manager._cache.get(str(year), [])
+        )
         cached_match = next(
             (
                 item
-                for item in self.character_manager._cache.get(str(year), [])
+                for item in candidate_records
                 if str(item.get("name", "")).casefold() == target["name"].casefold()
                 and str(item.get("alterego", "")).casefold() == target["alterego"].casefold()
             ),
@@ -548,6 +557,14 @@ class StructureOrderService:
             return credential_path, cached_match
 
         return credential_path, disk_character
+
+    def find_character_credential(
+        self,
+        target: dict[str, Any],
+        cache_records: list[dict[str, Any]] | None = None,
+    ) -> tuple[Path, dict]:
+        """Public, read/write-safe resolver for one exact year/name/alterego identity."""
+        return self._find_character_credential(target, cache_records=cache_records)
 
     def _create_prechange_backup(
         self,
