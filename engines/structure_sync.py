@@ -228,7 +228,12 @@ class StructureSyncService:
         self._fetch()
         status = self._inspect_after_fetch()
         if branch_changed:
-            status["character_cache_snapshot"] = self._capture_character_cache_snapshot()
+            try:
+                status["character_cache_snapshot"] = (
+                    self._capture_character_cache_snapshot()
+                )
+            except (OSError, StructureSyncError) as error:
+                status["character_cache_snapshot_error"] = str(error)
         return status
 
     def _fetch(self, timeout: int = 120) -> None:
@@ -262,6 +267,22 @@ class StructureSyncService:
         content = cache_path.read_bytes()
         pending_path.parent.mkdir(parents=True, exist_ok=True)
         if pending_path.exists():
+            import stat
+
+            try:
+                pending_info = pending_path.lstat()
+            except OSError as error:
+                raise StructureSyncError(
+                    f"No se pudo inspeccionar el snapshot pendiente: {error}"
+                ) from error
+            if (
+                not stat.S_ISREG(pending_info.st_mode)
+                or stat.S_ISLNK(pending_info.st_mode)
+                or bool(getattr(pending_info, "st_file_attributes", 0) & 0x400)
+            ):
+                raise StructureSyncError(
+                    "El snapshot pendiente no es un archivo regular. No se leerá ni sobrescribirá."
+                )
             existing = pending_path.read_bytes()
             if existing == content:
                 return {"snapshot_path": str(pending_path), "status": "already_preserved"}
@@ -446,9 +467,12 @@ class StructureSyncService:
             timeout=120,
         )
         updated_status = self._inspect_after_fetch()
-        updated_status["character_cache_snapshot"] = (
-            self._capture_character_cache_snapshot()
-        )
+        try:
+            updated_status["character_cache_snapshot"] = (
+                self._capture_character_cache_snapshot()
+            )
+        except (OSError, StructureSyncError) as error:
+            updated_status["character_cache_snapshot_error"] = str(error)
         return {
             "updated": True,
             "message": "Los cambios remotos se descargaron correctamente.",
@@ -481,7 +505,12 @@ class StructureSyncService:
             create_pre_restore_backup=True,
             source_commit=current_head,
         )
-        cache_snapshot = self._capture_character_cache_snapshot()
+        try:
+            cache_snapshot = self._capture_character_cache_snapshot()
+            cache_snapshot_error = ""
+        except (OSError, StructureSyncError) as error:
+            cache_snapshot = None
+            cache_snapshot_error = str(error)
         status = self._working_tree_changes()
         return {
             "restored": True,
@@ -493,4 +522,5 @@ class StructureSyncService:
             "restored_backup": str(restore_result["restored_backup"]),
             "local_change_count": len(status),
             "character_cache_snapshot": cache_snapshot,
+            "character_cache_snapshot_error": cache_snapshot_error,
         }
