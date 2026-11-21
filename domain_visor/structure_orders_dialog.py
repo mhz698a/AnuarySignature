@@ -157,7 +157,7 @@ class StructureOrdersDialog(QDialog):
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, entry["path"].name)
             if entry["error"]:
-                item.setForeground(Qt.GlobalColor.red)
+                item.setForeground(QColor("#f48771"))
             self.order_list.addItem(item)
 
         self.order_list.blockSignals(False)
