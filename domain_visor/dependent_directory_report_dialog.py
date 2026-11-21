@@ -97,9 +97,11 @@ class DependentDirectoryReportDialog(QDialog):
 
         scope = QLabel(
             f"Unidad dependiente:\n{self.base_path}\n\n"
-            "Solo se leerán directorios de años de cuatro dígitos y hasta dos "
-            "niveles de subcarpetas después de cada año. No se abrirán, leerán "
-            "ni registrarán archivos."
+            "Se registrarán directorios de años y hasta dos niveles de "
+            "subcarpetas. También se identificarán las carpetas de personajes "
+            "dentro de <prefijo>. album y se anotarán los nombres y rutas relativas "
+            "de sus archivos __*.json. No se abrirá ni copiará el contenido de "
+            "las credenciales."
         )
         scope.setWordWrap(True)
         layout.addWidget(scope)
