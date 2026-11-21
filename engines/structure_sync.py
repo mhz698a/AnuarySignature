@@ -188,6 +188,7 @@ class StructureSyncService:
         """Switch to an origin branch without stashing or discarding local edits."""
         self._ensure_repository()
         self._ensure_expected_remote()
+        self._ensure_no_pending_character_cache_snapshot()
         branch = str(branch or "").strip()
         if not branch:
             raise StructureSyncError("Selecciona una rama remota.")
@@ -227,6 +228,25 @@ class StructureSyncService:
 
     def _fetch(self, timeout: int = 120) -> None:
         self._run_git("fetch", "--prune", self.REMOTE_NAME, timeout=timeout)
+
+    @staticmethod
+    def _pending_character_cache_snapshot_path() -> Path:
+        return (
+            get_structure_repo_root().parent
+            / "CharacterCacheSync"
+            / "pending_characters_cache.json"
+        )
+
+    def _ensure_no_pending_character_cache_snapshot(self) -> None:
+        pending_path = self._pending_character_cache_snapshot_path()
+        if pending_path.is_file():
+            raise StructureSyncError(
+                "Hay una copia pendiente de aplicar de characters_cache.json en "
+                "AppData. Antes de cambiar de rama, descargar otra versión o restaurar "
+                "un respaldo, aplica sus cambios desde Herramientas → Aplicar cambios "
+                "de caché a credenciales locales, o descarta explícitamente esa copia. "
+                f"Archivo protegido: {pending_path}"
+            )
 
     def _working_tree_changes(self) -> list[str]:
         output = self._run_git(
@@ -350,6 +370,7 @@ class StructureSyncService:
         self._ensure_repository()
         self._ensure_expected_remote()
         self._current_branch()
+        self._ensure_no_pending_character_cache_snapshot()
         self._fetch()
         status = self._inspect_after_fetch()
 
@@ -409,6 +430,7 @@ class StructureSyncService:
         self._ensure_repository()
         self._ensure_expected_remote()
         self._current_branch()
+        self._ensure_no_pending_character_cache_snapshot()
         current_head = self._run_git("rev-parse", "HEAD").stdout.strip()
         restore_result = self.backups.restore_backup(
             backup_path,
