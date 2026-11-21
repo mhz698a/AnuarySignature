@@ -106,7 +106,7 @@ are copied to local character credentials only when those local fields are
 empty; non-empty local values remain authoritative.
 
 The researched cache update is reviewed separately in
-[AnuarySignature-Structure PR #1](https://github.com/mhz698a/AnuarySignature-Structure/pull/1).
+[AnuarySignature-Structure PR #1](https://github.com/mhz698a/AnuarySignature-Structure/pull/2).
 
 ## Installation
 
