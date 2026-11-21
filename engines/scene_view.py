@@ -941,6 +941,17 @@ class VasculumApp(QMainWindow):
         self.progress_dialog.finished.connect(self.trigger_render)
         self.progress_dialog.start_loading()
 
+    def _finish_close_after_structure_status(self):
+        """Resume shutdown after the background Structure status check finishes."""
+        try:
+            self.structure_status_monitor.idle.disconnect(
+                self._finish_close_after_structure_status
+            )
+        except (TypeError, RuntimeError):
+            pass
+        self._close_waiting_for_structure_status = False
+        self.close()
+
     def closeEvent(self, event):
         if not self._allow_application_exit:
             dialog = QMessageBox(self)
@@ -996,7 +1007,14 @@ class VasculumApp(QMainWindow):
             self.structure_status_monitor.stop()
             worker = self.structure_status_monitor._worker
             if worker is not None and worker.isRunning():
-                worker.wait(5000)
+                if not getattr(self, "_close_waiting_for_structure_status", False):
+                    self._close_waiting_for_structure_status = True
+                    self.setEnabled(False)
+                    self.structure_status_monitor.idle.connect(
+                        self._finish_close_after_structure_status
+                    )
+                event.ignore()
+                return
 
         if hasattr(self, "progress_dialog") and self.progress_dialog:
             try:
