@@ -121,9 +121,18 @@ class StructureSyncDialog(QDialog):
         layout.addWidget(self.details_label)
 
         branch_row = QHBoxLayout()
-        branch_row.addWidget(QLabel("Rama de trabajo:"))
+        branch_label = QLabel("Rama / origen de PR:")
+        branch_label.setToolTip(
+            "Para trabajar sobre una Pull Request del mismo repositorio, selecciona "
+            "su rama de origen (head branch)."
+        )
+        branch_row.addWidget(branch_label)
         self.branch_combo = QComboBox()
         self.branch_combo.setMinimumWidth(260)
+        self.branch_combo.setToolTip(
+            "Ramas disponibles en origin. Una Pull Request se trabaja mediante su "
+            "rama de origen."
+        )
         self.branch_combo.activated.connect(self._on_branch_activated)
         branch_row.addWidget(self.branch_combo, 1)
         self.refresh_branches_button = QPushButton("Actualizar ramas")
@@ -354,6 +363,13 @@ class StructureSyncDialog(QDialog):
             self.operation_label.setText(
                 f"Rama de trabajo cambiada a '{self._previous_branch}'."
             )
+            snapshot_error = result.get("character_cache_snapshot_error")
+            if snapshot_error:
+                self.operation_label.setText(
+                    self.operation_label.text()
+                    + " No se pudo preservar characters_cache.json: "
+                    + snapshot_error
+                )
             self._check_after_worker = False
         elif operation == "check":
             self.current_status = result
@@ -373,6 +389,13 @@ class StructureSyncDialog(QDialog):
                         f"{Path(backup_path).name}."
                     )
                 self.structure_changed = True
+                snapshot_error = (status or {}).get("character_cache_snapshot_error")
+                if snapshot_error:
+                    self.operation_label.setText(
+                        self.operation_label.text()
+                        + " No se pudo preservar characters_cache.json: "
+                        + snapshot_error
+                    )
             self._refresh_backup_list()
         elif operation == "backup":
             backup_path = result.get("backup_path")
@@ -384,6 +407,13 @@ class StructureSyncDialog(QDialog):
         elif operation == "restore":
             self.operation_label.setText(result.get("message", "Respaldo restaurado."))
             self.structure_changed = True
+            snapshot_error = result.get("character_cache_snapshot_error")
+            if snapshot_error:
+                self.operation_label.setText(
+                    self.operation_label.text()
+                    + " No se pudo preservar characters_cache.json: "
+                    + snapshot_error
+                )
             self._refresh_backup_list()
             self.current_status = None
             self.status_label.setText(
