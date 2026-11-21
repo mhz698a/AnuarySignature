@@ -165,8 +165,8 @@ class StructureSyncService:
                 f"La sincronización administrada requiere la rama '{self.BRANCH_NAME}'."
             )
 
-    def _fetch(self) -> None:
-        self._run_git("fetch", "--prune", self.REMOTE_NAME, timeout=120)
+    def _fetch(self, timeout: int = 120) -> None:
+        self._run_git("fetch", "--prune", self.REMOTE_NAME, timeout=timeout)
 
     def _working_tree_changes(self) -> list[str]:
         output = self._run_git(
@@ -219,11 +219,11 @@ class StructureSyncService:
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    def check_for_updates(self) -> dict[str, Any]:
+    def check_for_updates(self, fetch_timeout: int = 120) -> dict[str, Any]:
         """Fetch remote metadata and report local edits and ahead/behind counts."""
         self._ensure_repository()
         self._ensure_expected_remote()
-        self._fetch()
+        self._fetch(timeout=max(5, int(fetch_timeout)))
         return self._inspect_after_fetch()
 
     def upload_changes(self) -> dict[str, Any]:
