@@ -15,7 +15,11 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from engines.character_credential_backup import CharacterCredentialBackupService
+from engines.character_credential_backup import (
+    ALLOWED_IMAGE_EXTENSIONS,
+    MAX_IMAGE_BYTES,
+    CharacterCredentialBackupService,
+)
 from engines.structure_paths import get_structure_dir, get_structure_repo_root
 
 
@@ -242,6 +246,59 @@ class StructureOrderService:
                 "fields": dict(fields),
             }
 
+        if operation_type == "replace_character_asset":
+            target = operation.get("target")
+            if not isinstance(target, dict):
+                raise StructureOrderError("Falta el personaje de destino.")
+            try:
+                year = int(target.get("year"))
+            except (TypeError, ValueError) as error:
+                raise StructureOrderError("El año del personaje no es válido.") from error
+            if not isinstance(target.get("name"), str) or not target["name"].strip():
+                raise StructureOrderError("Falta el nombre del personaje.")
+            if not isinstance(target.get("alterego"), str) or not target["alterego"].strip():
+                raise StructureOrderError("Falta el alterego del personaje.")
+            field_name = operation.get("field")
+            if field_name not in {"icon_path", "background_path"}:
+                raise StructureOrderError(
+                    "field debe ser icon_path o background_path."
+                )
+            asset_relative = self._safe_relative_path(
+                operation.get("asset_path", "")
+            )
+            if not asset_relative.parts or asset_relative.parts[0] != "assets":
+                raise StructureOrderError(
+                    "La imagen de la orden debe estar bajo orders/assets/."
+                )
+            asset_root = (self.orders_root / "assets").resolve()
+            source_path = (self.orders_root / Path(*asset_relative.parts)).resolve()
+            if not source_path.is_relative_to(asset_root) or not source_path.is_file():
+                raise StructureOrderError(
+                    "No se encontró la imagen dentro de la carpeta de recursos de órdenes."
+                )
+            if (
+                source_path.suffix.lower() not in ALLOWED_IMAGE_EXTENSIONS
+                or source_path.stat().st_size <= 0
+                or source_path.stat().st_size > MAX_IMAGE_BYTES
+            ):
+                raise StructureOrderError(
+                    "La imagen de la orden debe tener un formato admitido y pesar "
+                    f"como máximo {MAX_IMAGE_BYTES // (1024 * 1024)} MB."
+                )
+            return {
+                "id": order_id,
+                "title": order["title"].strip(),
+                "description": order["description"].strip(),
+                "operation_type": operation_type,
+                "target": {
+                    "year": year,
+                    "name": target["name"].strip(),
+                    "alterego": target["alterego"].strip(),
+                },
+                "field": field_name,
+                "asset_path": asset_relative.as_posix(),
+            }
+
         if operation_type == "update_dependent_json":
             relative = self._safe_relative_path(operation.get("path", ""))
             if relative.suffix.casefold() != ".json":
@@ -283,7 +340,7 @@ class StructureOrderService:
 
         raise StructureOrderError(
             f"Tipo de operación no permitido: {operation_type!r}. "
-            "Solo se aceptan update_character_credential, "
+            "Solo se aceptan update_character_credential, replace_character_asset, "
             "update_dependent_json y create_directory."
         )
 
@@ -409,6 +466,103 @@ class StructureOrderService:
             "character_backup_warning": backup_warning,
         }
 
+    def _apply_character_asset_replacement(
+        self,
+        validated: dict[str, Any],
+    ) -> dict[str, Any]:
+        credential_path, cached_character = self._find_character_credential(
+            validated["target"]
+        )
+        try:
+            payload = json.loads(credential_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise StructureOrderError(
+                f"No se pudo leer la credencial antes de cambiar su imagen: {error}"
+            ) from error
+
+        character_data = payload.get("character_data")
+        if not isinstance(character_data, dict):
+            raise StructureOrderError("La credencial no contiene character_data.")
+
+        asset_path = (self.orders_root / Path(*PurePosixPath(
+            validated["asset_path"]
+        ).parts)).resolve()
+        asset_root = (self.orders_root / "assets").resolve()
+        if not asset_path.is_relative_to(asset_root) or not asset_path.is_file():
+            raise StructureOrderError(
+                "La imagen dejó de estar disponible dentro de orders/assets."
+            )
+        extension = asset_path.suffix.lower()
+        size = asset_path.stat().st_size
+        if extension not in ALLOWED_IMAGE_EXTENSIONS or size <= 0 or size > MAX_IMAGE_BYTES:
+            raise StructureOrderError("El archivo de imagen ya no cumple los límites permitidos.")
+
+        slot = validated["field"].removesuffix("_path")
+        destination_name = (
+            f"__structure_order_{validated['id']}_{slot}{extension}"
+        )
+        destination_path = credential_path.parent / destination_name
+        if destination_path.exists():
+            raise StructureOrderError(
+                "Ya existe el destino de imagen de esta orden. No se sobrescribirá."
+            )
+
+        prechange_backup = self._create_prechange_backup(
+            validated["id"],
+            credential_path,
+            credential_path.read_bytes(),
+        )
+
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix=f".{destination_name}.",
+                suffix=".tmp",
+                dir=credential_path.parent,
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                with asset_path.open("rb") as source:
+                    shutil.copyfileobj(source, temporary_file)
+            if temporary_path.stat().st_size != size:
+                raise StructureOrderError("La copia temporal de imagen quedó incompleta.")
+            os.replace(temporary_path, destination_path)
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                temporary_path.unlink(missing_ok=True)
+
+        character_data[validated["field"]] = destination_name
+        _atomic_write_json(credential_path, payload)
+        cached_character[validated["field"]] = destination_name
+        self.character_manager.save_cache_file()
+
+        backup_warning = ""
+        try:
+            character_backup = CharacterCredentialBackupService(
+                self.dependent_root,
+                structure_dir=self.structure_dir,
+            ).backup_character(cached_character)
+        except Exception as error:
+            character_backup = None
+            backup_warning = str(error)
+
+        return {
+            "operation": validated["operation_type"],
+            "dependent_relative_path": credential_path.relative_to(
+                self.dependent_root
+            ).as_posix(),
+            "new_image_relative_path": destination_path.relative_to(
+                self.dependent_root
+            ).as_posix(),
+            "image_sha256": hashlib.sha256(destination_path.read_bytes()).hexdigest(),
+            "image_size_bytes": size,
+            "prechange_backup": prechange_backup,
+            "previous_image_preserved": True,
+            "character_backup": character_backup,
+            "character_backup_warning": backup_warning,
+        }
+
     def _apply_json_update(self, validated: dict[str, Any]) -> dict[str, Any]:
         target_path = self._resolve_dependent_path(validated["path"])
         if not target_path.is_file():
@@ -468,6 +622,8 @@ class StructureOrderService:
         operation_type = validated["operation_type"]
         if operation_type == "update_character_credential":
             details = self._apply_credential_update(validated)
+        elif operation_type == "replace_character_asset":
+            details = self._apply_character_asset_replacement(validated)
         elif operation_type == "update_dependent_json":
             details = self._apply_json_update(validated)
         elif operation_type == "create_directory":
@@ -536,6 +692,14 @@ class StructureOrderService:
                 f"Actualizar credencial: {target['name']} / {target['alterego']} "
                 f"({target['year']}).\nCampos: "
                 + ", ".join(sorted(validated["fields"]))
+            )
+        if operation == "replace_character_asset":
+            target = validated["target"]
+            return (
+                f"Reemplazar imagen seleccionada ({validated['field']}) de "
+                f"{target['name']} / {target['alterego']} ({target['year']}).\\n"
+                f"Recurso: {validated['asset_path']}\\n"
+                "La imagen anterior se conservará en la unidad dependiente."
             )
         if operation == "update_dependent_json":
             return (
