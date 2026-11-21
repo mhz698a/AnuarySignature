@@ -18,9 +18,9 @@ from typing import Any
 
 REPORT_FILENAME = "dependent_directory_report.json"
 MAX_SUBFOLDER_LEVELS_AFTER_YEAR = 2
-_YEAR_DIRECTORY_PATTERN = re.compile(r"^\\d{4}$")
+_YEAR_DIRECTORY_PATTERN = re.compile(r"^\d{4}$")
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
-_CREDENTIAL_FILENAME_PATTERN = re.compile(r"^__.+__\\.json$", re.IGNORECASE)
+_CREDENTIAL_FILENAME_PATTERN = re.compile(r"^__.+__\.json$", re.IGNORECASE)
 
 
 class DependentDirectoryReportError(RuntimeError):
@@ -43,16 +43,11 @@ class DependentDirectoryReportService:
         """Ignore files, symlinks and Windows reparse-point directories."""
         if not entry.is_dir(follow_symlinks=False):
             return False
-
-        try:
-            attributes = getattr(
-                entry.stat(follow_symlinks=False),
-                "st_file_attributes",
-                0,
-            )
-        except OSError:
-            raise
-
+        attributes = getattr(
+            entry.stat(follow_symlinks=False),
+            "st_file_attributes",
+            0,
+        )
         return not bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
 
     @staticmethod
@@ -60,14 +55,11 @@ class DependentDirectoryReportService:
         """Accept only regular files; ignore symlinks and reparse points."""
         if not entry.is_file(follow_symlinks=False):
             return False
-        try:
-            attributes = getattr(
-                entry.stat(follow_symlinks=False),
-                "st_file_attributes",
-                0,
-            )
-        except OSError:
-            raise
+        attributes = getattr(
+            entry.stat(follow_symlinks=False),
+            "st_file_attributes",
+            0,
+        )
         return not bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
 
     @classmethod
@@ -82,7 +74,7 @@ class DependentDirectoryReportService:
                 ]
         except OSError as error:
             raise DependentDirectoryReportError(
-                f"No se pudo leer el directorio:\\n{parent}\\n\\n{error}"
+                f"No se pudo leer el directorio:\n{parent}\n\n{error}"
             ) from error
 
         return sorted(directories, key=lambda entry: entry.name.casefold())
@@ -210,7 +202,7 @@ class DependentDirectoryReportService:
         root = self.base_path.resolve()
         if not root.exists() or not root.is_dir():
             raise DependentDirectoryReportError(
-                f"La unidad dependiente no está disponible o no es un directorio:\\n{root}"
+                f"La unidad dependiente no está disponible o no es un directorio:\n{root}"
             )
 
         directories: list[dict[str, Any]] = []
@@ -235,7 +227,7 @@ class DependentDirectoryReportService:
             first_level = self._directory_entries(year_path)
             for first_entry in first_level:
                 first_path = Path(first_entry.path)
-                first_relative = f"{year_name}\\\\{first_entry.name}"
+                first_relative = f"{year_name}\\{first_entry.name}"
                 directories.append(
                     {
                         "year": year_name,
@@ -250,21 +242,27 @@ class DependentDirectoryReportService:
                         {
                             "year": year_name,
                             "relative_path": (
-                                f"{first_relative}\\\\{second_entry.name}"
+                                f"{first_relative}\\{second_entry.name}"
                             ),
                             "depth_after_year": 2,
                         }
                     )
 
-            album_prefix = f"{max(0, int(year_name) - 2003):02d}"
-            album_dir = year_path / f"{album_prefix}. album"
-            if album_dir.is_dir() and not album_dir.is_symlink():
+            album_name = f"{max(0, int(year_name) - 2003):02d}. album"
+            album_entry = next(
+                (
+                    entry for entry in first_level
+                    if entry.name.casefold() == album_name.casefold()
+                ),
+                None,
+            )
+            if album_entry is not None:
                 character_credentials.extend(
                     self._character_credential_records(
                         root,
                         year_entry,
-                        album_prefix,
-                        album_dir,
+                        album_name.split(".", 1)[0],
+                        Path(album_entry.path),
                     )
                 )
 
@@ -323,7 +321,7 @@ class DependentDirectoryReportService:
         if not self.report_path.parent.is_dir():
             raise DependentDirectoryReportError(
                 "No existe el directorio local del repositorio Structure. "
-                "Comprueba que el repositorio privado esté clonado.\\n"
+                "Comprueba que el repositorio privado esté clonado.\n"
                 f"{self.report_path.parent}"
             )
 
@@ -332,7 +330,7 @@ class DependentDirectoryReportService:
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
-                newline="\\n",
+                newline="\n",
                 prefix=f".{self.report_path.name}.",
                 suffix=".tmp",
                 dir=self.report_path.parent,
@@ -345,13 +343,13 @@ class DependentDirectoryReportService:
                     ensure_ascii=False,
                     indent=2,
                 )
-                temporary_file.write("\\n")
+                temporary_file.write("\n")
 
             os.replace(temporary_path, self.report_path)
         except OSError as error:
             raise DependentDirectoryReportError(
-                f"No se pudo escribir el reporte de directorios:\\n"
-                f"{self.report_path}\\n\\n{error}"
+                f"No se pudo escribir el reporte de directorios:\n"
+                f"{self.report_path}\n\n{error}"
             ) from error
         finally:
             if temporary_path is not None and temporary_path.exists():
