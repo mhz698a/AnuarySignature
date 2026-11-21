@@ -48,6 +48,8 @@ class StructureSyncDialog(QDialog):
         self.current_status = None
         self.structure_changed = False
         self.backups = []
+        self._previous_branch = ""
+        self._check_after_worker = False
 
         self.setWindowTitle("Sincronización de Structure")
         self.setModal(True)
@@ -91,7 +93,7 @@ class StructureSyncDialog(QDialog):
         self._build_ui()
         self._refresh_backup_list()
         self._refresh_credentials_status()
-        self._run_operation("check")
+        self._run_operation("branches")
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -117,6 +119,19 @@ class StructureSyncDialog(QDialog):
         self.details_label.setWordWrap(True)
         self.details_label.setStyleSheet("color: #bdbdbd;")
         layout.addWidget(self.details_label)
+
+        branch_row = QHBoxLayout()
+        branch_row.addWidget(QLabel("Rama de trabajo:"))
+        self.branch_combo = QComboBox()
+        self.branch_combo.setMinimumWidth(260)
+        self.branch_combo.activated.connect(self._on_branch_activated)
+        branch_row.addWidget(self.branch_combo, 1)
+        self.refresh_branches_button = QPushButton("Actualizar ramas")
+        self.refresh_branches_button.clicked.connect(
+            lambda: self._run_operation("branches")
+        )
+        branch_row.addWidget(self.refresh_branches_button)
+        layout.addLayout(branch_row)
 
         credential_row = QHBoxLayout()
         self.credentials_label = QLabel()
@@ -182,6 +197,8 @@ class StructureSyncDialog(QDialog):
     def _set_busy(self, busy: bool):
         if busy:
             self.check_button.setEnabled(False)
+            self.branch_combo.setEnabled(False)
+            self.refresh_branches_button.setEnabled(False)
             self.download_button.setEnabled(False)
             self.upload_button.setEnabled(False)
             self.create_backup_button.setEnabled(False)
@@ -193,6 +210,8 @@ class StructureSyncDialog(QDialog):
 
         self.manage_token_button.setEnabled(True)
         self.check_button.setEnabled(True)
+        self.branch_combo.setEnabled(self.branch_combo.count() > 0)
+        self.refresh_branches_button.setEnabled(True)
         self.create_backup_button.setEnabled(True)
         self.backup_combo.setEnabled(True)
         self.close_button.setEnabled(True)
@@ -204,14 +223,12 @@ class StructureSyncDialog(QDialog):
         behind = int(status.get("behind", 0))
         local_changes = int(status.get("local_change_count", 0))
         conflicts = status.get("conflicts", [])
-        on_main = status.get("branch") == "main"
-
         self.download_button.setEnabled(
-            on_main and behind > 0 and ahead == 0
+            bool(status.get("branch")) and behind > 0 and ahead == 0
             and local_changes == 0 and not conflicts
         )
         self.upload_button.setEnabled(
-            on_main and behind == 0
+            bool(status.get("branch")) and behind == 0
             and (ahead > 0 or local_changes > 0) and not conflicts
         )
         self.restore_backup_button.setEnabled(self.backup_combo.count() > 0)
@@ -273,12 +290,15 @@ class StructureSyncDialog(QDialog):
 
         callbacks = {
             "check": self.service.check_for_updates,
+            "branches": self.service.list_remote_branches,
             "upload": self.service.upload_changes,
             "download": self.service.download_updates,
             "backup": self.service.create_manual_backup,
         }
         if operation == "restore":
             callback = lambda: self.service.restore_backup(argument)
+        elif operation == "switch":
+            callback = lambda: self.service.switch_branch(argument)
         else:
             callback = callbacks[operation]
 
@@ -297,9 +317,45 @@ class StructureSyncDialog(QDialog):
             worker.deleteLater()
         self.worker = None
         self._set_busy(False)
+        if self._check_after_worker:
+            self._check_after_worker = False
+            self._run_operation("check")
+
+    def _on_branch_activated(self, index: int):
+        branch = self.branch_combo.itemData(index)
+        if not branch or branch == self._previous_branch:
+            return
+        self._run_operation("switch", branch)
 
     def _on_operation_completed(self, operation: str, result):
-        if operation == "check":
+        if operation == "branches":
+            branches = result.get("branches", [])
+            current_branch = result.get("current_branch", "")
+            self.branch_combo.blockSignals(True)
+            self.branch_combo.clear()
+            for branch in branches:
+                self.branch_combo.addItem(branch, branch)
+            current_index = self.branch_combo.findData(current_branch)
+            if current_index >= 0:
+                self.branch_combo.setCurrentIndex(current_index)
+            self.branch_combo.blockSignals(False)
+            self._previous_branch = current_branch
+            if not branches:
+                self.operation_label.setText("No se encontraron ramas remotas.")
+            else:
+                self.operation_label.setText(
+                    f"Ramas remotas disponibles: {len(branches)}."
+                )
+            self._check_after_worker = True
+        elif operation == "switch":
+            self.current_status = result
+            self._previous_branch = result.get("branch", "")
+            self._display_status(result)
+            self.operation_label.setText(
+                f"Rama de trabajo cambiada a '{self._previous_branch}'."
+            )
+            self._check_after_worker = False
+        elif operation == "check":
             self.current_status = result
             self._display_status(result)
             self.operation_label.setText("Comprobación terminada.")
@@ -340,6 +396,12 @@ class StructureSyncDialog(QDialog):
 
     def _on_operation_failed(self, operation: str, message: str):
         self._refresh_credentials_status()
+        if operation == "switch" and self._previous_branch:
+            self.branch_combo.blockSignals(True)
+            previous_index = self.branch_combo.findData(self._previous_branch)
+            if previous_index >= 0:
+                self.branch_combo.setCurrentIndex(previous_index)
+            self.branch_combo.blockSignals(False)
         self.operation_label.setText(f"No se pudo completar la operación: {message}")
         if operation == "check":
             self.status_label.setText("No se pudo comprobar el estado remoto.")
@@ -411,7 +473,8 @@ class StructureSyncDialog(QDialog):
         if QMessageBox.question(
             self,
             "Descargar cambios",
-            "Se creará un respaldo local antes de descargar. "
+            f"Se creará un respaldo local antes de descargar la rama "
+            f"'{(self.current_status or {}).get('branch', 'actual')}'. "
             "Solo se permite una actualización fast-forward y no se sobrescribirán "
             "cambios locales pendientes. ¿Continuar?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -423,8 +486,9 @@ class StructureSyncDialog(QDialog):
         if QMessageBox.question(
             self,
             "Subir cambios",
-            "Los cambios locales se agruparán en un commit y se enviarán a la rama main "
-            "del repositorio privado. ¿Continuar?",
+            f"Los cambios locales se agruparán en un commit y se enviarán a la rama "
+            f"'{(self.current_status or {}).get('branch', 'actual')}' del repositorio privado. "
+            "¿Continuar?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         ) == QMessageBox.StandardButton.Yes:
