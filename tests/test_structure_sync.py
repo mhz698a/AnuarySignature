@@ -45,3 +45,54 @@ def test_git_process_options_hide_windows_console(monkeypatch):
 
 def test_git_process_options_are_unchanged_on_non_windows():
     assert structure_sync._background_process_options("posix") == {}
+
+
+def test_revision_counts_uses_the_selected_remote_branch(tmp_path):
+    from types import SimpleNamespace
+
+    service = StructureSyncService(repo_root=tmp_path)
+    calls = []
+
+    def fake_run_git(*arguments, **kwargs):
+        calls.append(arguments)
+        return SimpleNamespace(stdout="2\t3\n", returncode=0)
+
+    service._run_git = fake_run_git
+
+    assert service._revision_counts("phase-6/reviewed-character-colours") == (2, 3)
+    assert calls == [
+        (
+            "rev-list",
+            "--left-right",
+            "--count",
+            "HEAD...origin/phase-6/reviewed-character-colours",
+        )
+    ]
+
+
+def test_switch_branch_refuses_to_switch_with_uncommitted_changes(tmp_path):
+    from types import SimpleNamespace
+
+    import pytest
+
+    service = StructureSyncService(repo_root=tmp_path)
+    service._ensure_repository = lambda: None
+    service._ensure_expected_remote = lambda: "https://github.com/mhz698a/AnuarySignature-Structure.git"
+    service._fetch = lambda **kwargs: None
+    service._working_tree_changes = lambda: [" M characters_cache.json"]
+    commands = []
+
+    def fake_run_git(*arguments, **kwargs):
+        commands.append(arguments)
+        if arguments[:2] == ("check-ref-format", "--branch"):
+            return SimpleNamespace(stdout="", returncode=0)
+        if arguments[:2] == ("rev-parse", "--verify"):
+            return SimpleNamespace(stdout="abc123\n", returncode=0)
+        return SimpleNamespace(stdout="", returncode=0)
+
+    service._run_git = fake_run_git
+
+    with pytest.raises(structure_sync.StructureSyncError, match="cambios locales"):
+        service.switch_branch("phase-6/reviewed-character-colours")
+
+    assert not any(command and command[0] == "switch" for command in commands)
