@@ -301,7 +301,10 @@ class DependentDirectoryReportService:
             len(item["credential_files"]) for item in character_credentials
         )
         found_count = sum(
-            item["credential_status"] in {"found", "found_with_additional_candidates"}
+            item["credential_status"] in {
+                "found",
+                "found_with_additional_candidates",
+            }
             for item in character_credentials
         )
         missing_count = sum(
