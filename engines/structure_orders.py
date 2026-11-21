@@ -302,6 +302,11 @@ class StructureOrderService:
 
         if operation_type == "update_dependent_json":
             relative = self._safe_relative_path(operation.get("path", ""))
+            if relative.name.startswith("__") and relative.name.endswith("__.json"):
+                raise StructureOrderError(
+                    "Los JSON de credenciales de personajes deben modificarse con "
+                    "update_character_credential para mantener sincronizada la caché."
+                )
             if relative.suffix.casefold() != ".json":
                 raise StructureOrderError(
                     "update_dependent_json solo puede modificar archivos .json."
