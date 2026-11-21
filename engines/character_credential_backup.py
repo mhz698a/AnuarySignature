@@ -363,7 +363,7 @@ class CharacterCredentialBackupService:
                     entry for entry in self.dependent_root.iterdir()
                     if entry.is_dir()
                     and not entry.is_symlink()
-                    and re.fullmatch(r"\\d{4}", entry.name)
+                    and re.fullmatch(r"\d{4}", entry.name)
                 ),
                 key=lambda item: item.name,
             )
