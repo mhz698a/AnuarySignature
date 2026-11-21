@@ -219,7 +219,10 @@ class StructureSyncDialog(QDialog):
 
         self.manage_token_button.setEnabled(True)
         self.check_button.setEnabled(True)
-        self.branch_combo.setEnabled(self.branch_combo.count() > 0)
+        self.branch_combo.setEnabled(
+            self.branch_combo.count() > 0
+            and not self.service.has_pending_character_cache_snapshot()
+        )
         self.refresh_branches_button.setEnabled(True)
         self.create_backup_button.setEnabled(True)
         self.backup_combo.setEnabled(True)
@@ -232,15 +235,18 @@ class StructureSyncDialog(QDialog):
         behind = int(status.get("behind", 0))
         local_changes = int(status.get("local_change_count", 0))
         conflicts = status.get("conflicts", [])
+        pending_snapshot = self.service.has_pending_character_cache_snapshot()
         self.download_button.setEnabled(
             bool(status.get("branch")) and behind > 0 and ahead == 0
-            and local_changes == 0 and not conflicts
+            and local_changes == 0 and not conflicts and not pending_snapshot
         )
         self.upload_button.setEnabled(
             bool(status.get("branch")) and behind == 0
             and (ahead > 0 or local_changes > 0) and not conflicts
         )
-        self.restore_backup_button.setEnabled(self.backup_combo.count() > 0)
+        self.restore_backup_button.setEnabled(
+            self.backup_combo.count() > 0 and not pending_snapshot
+        )
 
     def _refresh_credentials_status(self):
         try:
@@ -450,10 +456,16 @@ class StructureSyncDialog(QDialog):
         local_changes = int(status.get("local_change_count", 0))
         conflicts = status.get("conflicts", [])
 
+        pending_snapshot = self.service.has_pending_character_cache_snapshot()
         if conflicts:
             headline = "Hay conflictos locales sin resolver."
+        elif ahead and behind:
+            headline = (
+                f"La rama divergió: {ahead} commit(s) local(es) y "
+                f"{behind} remoto(s) pendientes."
+            )
         elif local_changes and behind:
-            headline = "Hay cambios locales y remotos pendientes."
+            headline = "Hay cambios locales sin commit y cambios remotos pendientes."
         elif local_changes:
             headline = "Hay cambios locales pendientes de subir."
         elif behind:
@@ -464,13 +476,32 @@ class StructureSyncDialog(QDialog):
             headline = "Structure está sincronizado con GitHub."
 
         self.status_label.setText(headline)
-        self.details_label.setText(
+        details = (
             f"Rama: {status.get('branch', 'desconocida')}    "
             f"Commits locales pendientes: {ahead}    "
             f"Commits remotos pendientes: {behind}\n"
             f"Archivos locales modificados: {local_changes}    "
             f"Conflictos: {len(conflicts)}"
         )
+        if ahead and behind:
+            details += (
+                "\nLa rama local y origin tienen commits exclusivos de ambos lados. "
+                "La sincronización automática está bloqueada; resuelve la divergencia "
+                "con una operación Git revisada antes de continuar."
+            )
+        elif local_changes and behind:
+            details += (
+                "\nLa descarga está bloqueada por los cambios locales sin commit y "
+                "la subida por los commits remotos pendientes. Conserva los cambios "
+                "locales y resuelve primero la diferencia entre ambas copias."
+            )
+        if pending_snapshot:
+            details += (
+                "\nHay un snapshot de characters_cache.json pendiente en AppData. "
+                "Aplica sus cambios o descártalo desde Herramientas antes de cambiar "
+                "de rama, descargar o restaurar un respaldo."
+            )
+        self.details_label.setText(details)
 
         self._apply_sync_button_states()
 
