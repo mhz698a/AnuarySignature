@@ -17,6 +17,7 @@ from character_visor.character_manager import CharacterManager
 from year_visor.year_creator import validate_date_constraints
 from year_visor.year_utils import calculate_id_package_default
 from engines.structure_paths import get_structure_file
+from engines.dependent_directory_report import DependentDirectoryReportService
 from character_visor.knowledge_wardrobe import (
     KnowledgeWardrobeWidget,
     resolve_marker_knowledge_directories,
@@ -553,6 +554,24 @@ class YearDialog(QDialog):
         layout.addWidget(self.year_folder_tree)
         return container
 
+    def _update_dependent_directory_report(self):
+        """Refresh the directory-only report after a folder structure change."""
+        try:
+            result = DependentDirectoryReportService(
+                self.base_path,
+                get_structure_file("dependent_directory_report.json"),
+            ).generate_or_update()
+            return result
+        except Exception as error:
+            QMessageBox.warning(
+                self,
+                "Reporte de unidad dependiente",
+                "La operación de carpetas terminó, pero no se pudo actualizar "
+                "el reporte de directorios. Puedes generarlo desde Herramientas.\n\n"
+                f"{error}",
+            )
+            return None
+
     def _limit_tree_depth(self, index: QModelIndex):
         """Evita que el usuario expanda más allá del segundo nivel."""
         if not index.isValid():
@@ -678,6 +697,7 @@ class YearDialog(QDialog):
                     self.txt_season_name.setText(new_folder_name)
                     self.year_data["season_name"] = new_folder_name
                     self.save_credential_sync()
+                    self._update_dependent_directory_report()
                 else:
                     # Carpeta normal primer nivel
                     # 1. Renombrar / Crear en todos los años desde el primer año de infraestructura hasta el actual
@@ -719,6 +739,7 @@ class YearDialog(QDialog):
                                     json.dump(folders_data, f, indent=2, ensure_ascii=False)
                         except Exception as e:
                             print(f"Error actualizando folders.json: {e}")
+                    self._update_dependent_directory_report()
         elif depth == 2:
             # Segundo nivel (subcarpeta)
             dialog = FolderRenameDialog(full_name, self)
@@ -744,6 +765,8 @@ class YearDialog(QDialog):
                     msg_box.setText(f"No se pudo renombrar la carpeta:\n{e}")
                     msg_box.setStyleSheet(self.styleSheet())
                     msg_box.exec()
+                else:
+                    self._update_dependent_directory_report()
 
     def save_credential_sync(self):
         try:
@@ -799,6 +822,8 @@ class YearDialog(QDialog):
                                 json.dump(folders_data, f, indent=2, ensure_ascii=False)
                 except Exception as e:
                     print(f"Error actualizando folders.json: {e}")
+
+            self._update_dependent_directory_report()
 
     def open_folder_from_tree(self, index: QModelIndex):
         if not index.isValid() or not self.year_folder_model.isDir(index):
@@ -860,11 +885,15 @@ class YearDialog(QDialog):
             self.year_data["other_id_package_default"] = other_packages
 
             # 3. Asegurar que la carpeta exista
+            identity_directory_existed = self.identity_dir.is_dir()
             self.identity_dir.mkdir(parents=True, exist_ok=True)
 
             # 4. Guardar archivo JSON
             with open(self.json_filepath, "w", encoding="utf-8") as f:
                 json.dump({"year_data": self.year_data}, f, indent=4, ensure_ascii=False)
+
+            if not identity_directory_existed:
+                self._update_dependent_directory_report()
 
             self.saved = True
             self.accept()
