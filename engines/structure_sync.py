@@ -249,7 +249,7 @@ class StructureSyncService:
 
     def _ensure_no_pending_character_cache_snapshot(self) -> None:
         pending_path = self._pending_character_cache_snapshot_path()
-        if pending_path.is_file():
+        if pending_path.exists() or pending_path.is_symlink():
             raise StructureSyncError(
                 "Hay una copia pendiente de aplicar de characters_cache.json en "
                 "AppData. Antes de cambiar de rama, descargar otra versión o restaurar "
