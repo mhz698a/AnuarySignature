@@ -136,6 +136,34 @@ def test_report_recognizes_legacy_credential_filename_pattern(tmp_path):
     assert record["credential_relative_path"].endswith("/__Legacy.json")
 
 
+def test_report_prefers_standard_filename_and_counts_additional_candidates(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    character_folder = (
+        dependent_root
+        / "2025"
+        / "22. album"
+        / "22. 01;Example;Character;2000-01-02;25"
+    )
+    character_folder.mkdir(parents=True)
+    (character_folder / "__Character__.json").write_text("{}", encoding="utf-8")
+    (character_folder / "__older__.json").write_text("{}", encoding="utf-8")
+
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    service = DependentDirectoryReportService(dependent_root, report_path)
+    result = service.generate_or_update()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    record = payload["character_credentials"][0]
+    assert record["credential_status"] == "found_with_additional_candidates"
+    assert record["credential_file"] == "__Character__.json"
+    assert record["credential_relative_path"].endswith("/__Character__.json")
+    assert len(record["credential_files"]) == 2
+    assert result["credential_additional_candidates_count"] == 1
+
+
 def test_report_marks_missing_and_ambiguous_character_credentials(tmp_path):
     dependent_root = tmp_path / "_Internal"
     report_path = tmp_path / "Structure" / "__structure__" / (
