@@ -17,6 +17,7 @@ from const import APP_NAME
 from domain_visor.theme import Theme
 from domain_visor.dependent_path_dialog import DependentPathDialog
 from engines.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
+from engines.structure_paths import get_structure_dir
 from engines.render_engine import RenderEngine
 from character_visor.json_editor import JSONEditorPanel
 from character_visor.character_manager import CharacterManager
@@ -444,7 +445,7 @@ class VasculumApp(QMainWindow):
 
     def manage_verbose_resolutions(self):
         """Abre la tabla editable para las resoluciones verbosas."""
-        structure_dir = Path(__file__).resolve().parents[1] / "__structure__"
+        structure_dir = get_structure_dir()
         architecture_path = structure_dir / "verbose_architecture.json"
         business_path = structure_dir / "verbose_business.json"
 

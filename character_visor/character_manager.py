@@ -5,6 +5,8 @@ import json
 import datetime
 from pathlib import Path
 
+from engines.structure_paths import get_structure_file
+
 class CharacterManager:
     """
     Gestiona la carga dinámica y cacheada de perfiles/personajes.
@@ -18,8 +20,8 @@ class CharacterManager:
     def __init__(self, base_path=None, cache_path=None, infrastructure_path=None):
         # Permitir sobreescribir rutas para testing
         self.base_path = Path(base_path) if base_path else Path("E:/_Internal")
-        self.cache_path = Path(cache_path) if cache_path else Path("__structure__/characters_cache.json")
-        self.infrastructure_path = Path(infrastructure_path) if infrastructure_path else Path("__structure__/infrastructure.json")
+        self.cache_path = Path(cache_path) if cache_path else get_structure_file("characters_cache.json")
+        self.infrastructure_path = Path(infrastructure_path) if infrastructure_path else get_structure_file("infrastructure.json")
         self._cache = {}
         self.load_cache_file()
 

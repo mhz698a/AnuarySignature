@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from domain_visor.theme import Theme
+from engines.structure_paths import get_structure_file
 
 DEFAULT_TYPE_UNDERWEAR_LIST = [
     "Boybrief", "Girlbrief Clasic Mid Low rise", "boyshort boxer",
@@ -15,7 +16,7 @@ DEFAULT_TYPE_UNDERWEAR_LIST = [
     "Brief Slip", "Brief Mid high rise", "Pantaloons"
 ]
 
-DEFAULT_TYPE_UNDERWEAR_PATH = Path("__structure__/type_under_list.json")
+DEFAULT_TYPE_UNDERWEAR_PATH = get_structure_file("type_under_list.json")
 
 def load_global_type_underwear(filepath=None) -> list[str]:
     """

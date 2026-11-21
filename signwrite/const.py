@@ -5,6 +5,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+from engines.structure_paths import get_structure_file
+
 APP_NAME = "AnuarySignature"
 ORG_NAME = "EtudeProduts"
 
@@ -20,9 +22,9 @@ FILENAME_REPLACE_CHAR = "-"
 FORMATS = ["txt", "md", "docx", "other"]
 OTHER_OPTION = "Other..."
 
-# Shared databases remain in DomainViewer's existing __structure__ folder.
-CONTACTS_DB_PATH = str(PROJECT_ROOT / "__structure__" / "contacts_db.json")
-CLASSIFICATIONS_DB_PATH = str(PROJECT_ROOT / "__structure__" / "classifications_db.json")
+# Shared databases are stored in the private Structure repository checkout.
+CONTACTS_DB_PATH = str(get_structure_file("contacts_db.json"))
+CLASSIFICATIONS_DB_PATH = str(get_structure_file("classifications_db.json"))
 
 DEFAULT_CONTACTS_DB = {"autores": [], "destinatarios": [], "supervisores": []}
 

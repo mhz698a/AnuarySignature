@@ -16,6 +16,7 @@ from domain_visor.theme import Theme
 from character_visor.character_manager import CharacterManager
 from year_visor.year_creator import validate_date_constraints
 from year_visor.year_utils import calculate_id_package_default
+from engines.structure_paths import get_structure_file
 from character_visor.knowledge_wardrobe import (
     KnowledgeWardrobeWidget,
     resolve_marker_knowledge_directories,
@@ -703,7 +704,7 @@ class YearDialog(QDialog):
                                     print(f"Error creando carpeta {new_y_folder}: {e}")
 
                     # 2. Actualizar folders.json
-                    folders_json_path = Path("__structure__/folders.json")
+                    folders_json_path = get_structure_file("folders.json")
                     if folders_json_path.exists():
                         try:
                             with open(folders_json_path, "r", encoding="utf-8") as f:
@@ -786,7 +787,7 @@ class YearDialog(QDialog):
                         print(f"Error creando carpeta {target_path}: {e}")
 
             # 3. Actualizar folders.json
-            folders_json_path = Path("__structure__/folders.json")
+            folders_json_path = get_structure_file("folders.json")
             if folders_json_path.exists():
                 try:
                     with open(folders_json_path, "r", encoding="utf-8") as f:

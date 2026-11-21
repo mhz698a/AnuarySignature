@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from domain_visor.theme import Theme
 from year_visor.year_utils import calculate_id_package_default
 from character_visor.character_manager import CharacterManager
+from engines.structure_paths import get_structure_file
 
 class SeasonNameDialog(QDialog):
     """
@@ -231,7 +232,7 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
     base_path = Path(base_path)
 
     if infra_path is None:
-        infra_path = Path("__structure__/infrastructure.json")
+        infra_path = get_structure_file("infrastructure.json")
     infra_path = Path(infra_path)
 
     if today_date is None:
@@ -305,7 +306,7 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
     new_prefix = f"{max(0, year_value - 2003):02d}"
 
     # 4. Cargar folders.json o fallback
-    folders_json_path = Path("__structure__/folders.json")
+    folders_json_path = get_structure_file("folders.json")
     use_fallback = True
     json_data = {}
 

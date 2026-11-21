@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from engines.structure_paths import get_structure_dir
+
 from signwrite.const import (
     APP_NAME,
     CLASSIFICATIONS_DB_PATH,
@@ -10,7 +12,7 @@ from signwrite.const import (
 
 
 def test_singetude_databases_use_domainviewer_structure_directory():
-    structure_dir = Path(PROJECT_ROOT) / "__structure__"
+    structure_dir = get_structure_dir()
 
     assert Path(CONTACTS_DB_PATH) == structure_dir / "contacts_db.json"
     assert Path(CLASSIFICATIONS_DB_PATH) == structure_dir / "classifications_db.json"
