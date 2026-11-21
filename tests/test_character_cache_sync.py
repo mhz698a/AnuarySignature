@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from engines import character_cache_sync
 from engines.character_cache_sync import (
     CharacterCacheSyncError,
     CharacterCacheSyncService,
@@ -204,3 +205,44 @@ def test_pending_cache_snapshot_is_not_overwritten_by_a_different_cache(tmp_path
         service.capture_pending_snapshot()
 
     assert Path(first["snapshot_path"]).read_bytes() == original_snapshot
+
+
+
+def test_history_write_failure_reports_partial_application_and_keeps_snapshot(
+    tmp_path,
+    monkeypatch,
+):
+    service, credential, structure_dir = setup_service(
+        tmp_path,
+        {
+            "year": 2018,
+            "name": "emiru_aisaki",
+            "alterego": "cure_machérie",
+            "color_group": "rojo",
+        },
+    )
+    service.capture_pending_snapshot()
+    rows = service.preview_changes()
+    original_write_json = character_cache_sync._atomic_write_json
+
+    def fail_history_write(path, payload):
+        if Path(path) == service.history_path:
+            raise OSError("disk full")
+        return original_write_json(path, payload)
+
+    monkeypatch.setattr(
+        character_cache_sync,
+        "_atomic_write_json",
+        fail_history_write,
+    )
+
+    result = service.apply_selected(rows)
+
+    current = json.loads(credential.read_text(encoding="utf-8"))["character_data"]
+    assert current["color_group"] == "rojo"
+    assert result["applied_fields"] == 1
+    assert result["history_saved"] is False
+    assert any("no se pudo guardar el historial local" in issue for issue in result["issues"])
+    assert service.has_pending_snapshot()
+    backup = Path(result["backup_root"]) / credential.relative_to(service.dependent_root)
+    assert backup.is_file()
