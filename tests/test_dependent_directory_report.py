@@ -38,6 +38,7 @@ def test_report_contains_only_years_and_two_directory_levels(tmp_path):
     (dependent_root / "2010" / "00. archive").mkdir(parents=True)
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     result = service.generate_or_update()
 
@@ -85,6 +86,7 @@ def test_report_records_credential_filename_and_relative_location(tmp_path):
         encoding="utf-8",
     )
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     result = service.generate_or_update()
 
@@ -123,6 +125,7 @@ def test_report_recognizes_legacy_credential_filename_pattern(tmp_path):
     character_folder.mkdir(parents=True)
     (character_folder / "__Legacy.json").write_text("{}", encoding="utf-8")
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     service.generate_or_update()
 
@@ -146,6 +149,7 @@ def test_report_marks_missing_and_ambiguous_character_credentials(tmp_path):
     (ambiguous / "__one__.json").write_text("{}", encoding="utf-8")
     (ambiguous / "__two__.json").write_text("{}", encoding="utf-8")
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     result = service.generate_or_update()
 
@@ -171,6 +175,7 @@ def test_report_updates_after_new_directories_are_created(tmp_path):
     )
     (dependent_root / "2025").mkdir(parents=True)
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     service.generate_or_update()
 
@@ -201,6 +206,7 @@ def test_report_does_not_follow_symlinked_directories(tmp_path):
     except (OSError, NotImplementedError):
         pytest.skip("Directory symlinks are not available in this environment.")
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     service.generate_or_update()
     payload = json.loads(report_path.read_text(encoding="utf-8"))
@@ -232,6 +238,7 @@ def test_report_does_not_include_symlinked_credential_files(tmp_path):
     except (OSError, NotImplementedError):
         pytest.skip("File symlinks are not available in this environment.")
 
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     service = DependentDirectoryReportService(dependent_root, report_path)
     service.generate_or_update()
 
