@@ -87,9 +87,10 @@ Credential JSON contents and image files are never opened, copied or embedded
 in this report. Only regular credential filenames and relative paths are
 recorded. Symbolic links and Windows reparse-point files/directories are skipped.
 
-The report is regenerated after AnuarySignature creates a year, creates a
-shared year folder, renames a year folder, or creates a missing identity
-directory while saving a year credential. To rebuild it manually, use
+The report is regenerated after AnuarySignature creates or renames year folders,
+and after a character credential is saved. It is also refreshed during a complete
+character scan when AnuarySignature creates missing credential JSON files.
+To rebuild it manually, use
 **Herramientas → Generar/actualizar reporte de la unidad dependiente**.
 The manual scan runs in the background and preserves the previous report if
 the dependent drive cannot be read completely.
