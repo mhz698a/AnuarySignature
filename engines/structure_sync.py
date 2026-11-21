@@ -10,6 +10,7 @@ from typing import Any
 
 from engines.structure_paths import (
     STRUCTURE_REPOSITORY_URL,
+    get_structure_dir,
     get_structure_repo_root,
 )
 from engines.structure_backups import StructureBackupManager
@@ -210,7 +211,8 @@ class StructureSyncService:
                 "Primero súbelos o respáldalos y resuélvelos; no se guardarán en stash."
             )
 
-        if self._current_branch() != branch:
+        branch_changed = self._current_branch() != branch
+        if branch_changed:
             local_ref = self._run_git(
                 "show-ref", "--verify", "--quiet", f"refs/heads/{branch}",
                 check=False,
@@ -224,7 +226,10 @@ class StructureSyncService:
                 )
 
         self._fetch()
-        return self._inspect_after_fetch()
+        status = self._inspect_after_fetch()
+        if branch_changed:
+            status["character_cache_snapshot"] = self._capture_character_cache_snapshot()
+        return status
 
     def _fetch(self, timeout: int = 120) -> None:
         self._run_git("fetch", "--prune", self.REMOTE_NAME, timeout=timeout)
@@ -247,6 +252,41 @@ class StructureSyncService:
                 "de caché a credenciales locales, o descarta explícitamente esa copia. "
                 f"Archivo protegido: {pending_path}"
             )
+
+    def _capture_character_cache_snapshot(self) -> dict[str, str] | None:
+        """Preserve a checked-out cache before later scans or branch changes can rewrite it."""
+        cache_path = get_structure_dir() / "characters_cache.json"
+        if not cache_path.is_file():
+            return None
+        pending_path = self._pending_character_cache_snapshot_path()
+        content = cache_path.read_bytes()
+        pending_path.parent.mkdir(parents=True, exist_ok=True)
+        if pending_path.exists():
+            existing = pending_path.read_bytes()
+            if existing == content:
+                return {"snapshot_path": str(pending_path), "status": "already_preserved"}
+            raise StructureSyncError(
+                "Ya existe otra versión pendiente de characters_cache.json. "
+                "Se conservó intacta y no se sobrescribió."
+            )
+        temporary_path: Path | None = None
+        try:
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix=".characters_cache.",
+                suffix=".tmp",
+                dir=pending_path.parent,
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(content)
+            os.replace(temporary_path, pending_path)
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                temporary_path.unlink(missing_ok=True)
+        return {"snapshot_path": str(pending_path), "status": "captured"}
 
     def _working_tree_changes(self) -> list[str]:
         output = self._run_git(
@@ -405,11 +445,15 @@ class StructureSyncService:
             f"{self.REMOTE_NAME}/{status['branch']}",
             timeout=120,
         )
+        updated_status = self._inspect_after_fetch()
+        updated_status["character_cache_snapshot"] = (
+            self._capture_character_cache_snapshot()
+        )
         return {
             "updated": True,
             "message": "Los cambios remotos se descargaron correctamente.",
             "backup_path": str(backup_path),
-            "status": self._inspect_after_fetch(),
+            "status": updated_status,
         }
 
     def create_manual_backup(self) -> dict[str, Any]:
@@ -437,6 +481,7 @@ class StructureSyncService:
             create_pre_restore_backup=True,
             source_commit=current_head,
         )
+        cache_snapshot = self._capture_character_cache_snapshot()
         status = self._working_tree_changes()
         return {
             "restored": True,
@@ -447,4 +492,5 @@ class StructureSyncService:
             "pre_restore_backup": str(restore_result["pre_restore_backup"]),
             "restored_backup": str(restore_result["restored_backup"]),
             "local_change_count": len(status),
+            "character_cache_snapshot": cache_snapshot,
         }
