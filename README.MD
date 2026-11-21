@@ -47,7 +47,20 @@ Local backups are stored outside the Git checkout at:
 
 The synchronization controls require Git to be installed and the private
 repository to be accessible through the account configured in Git Credential
-Manager or GitHub Desktop.
+Manager or through a token registered in **Administrar token**.
+
+For token authentication, create a **fine-grained personal access token** for
+the `mhz698a` resource owner and select only the
+`AnuarySignature-Structure` repository. Grant **Contents: Read and write**
+(Metadata: Read is required by GitHub). Register the token in the sync dialog.
+The secret is stored in Windows Credential Manager, not in the source tree or
+the Structure JSON files. The expiration date shown in the application is the
+date entered by the user when registering the token; GitHub does not expose
+that PAT expiration date through the normal token validation response.
+
+Git operations run without opening visible Windows console windows. The
+**Subir cambios** action commits local Structure edits and pushes them to
+`main` only when the remote branch has no commits waiting to be downloaded.
 
 ## Installation
 
