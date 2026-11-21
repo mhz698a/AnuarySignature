@@ -582,6 +582,7 @@ class VasculumApp(QMainWindow):
                     f"Credenciales locales actualizadas: "
                     f"{result.get('applied_characters', 0)} personajes, "
                     f"{result.get('applied_fields', 0)} campos. "
+                    f"Cambios pendientes: {result.get('remaining_changes', 0)}. "
                     "Se creó un respaldo previo en AppData.",
                     7000,
                 )
