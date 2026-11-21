@@ -16,9 +16,9 @@ from engines.structure_backups import StructureBackupManager
 from engines.structure_credentials import StructureGitHubCredentialStore
 
 
-def _background_process_options() -> dict[str, Any]:
+def _background_process_options(platform_name: str | None = None) -> dict[str, Any]:
     """Prevent Git and its child processes from flashing a console on Windows."""
-    if os.name != "nt":
+    if (platform_name or os.name) != "nt":
         return {}
 
     startupinfo = subprocess.STARTUPINFO()
