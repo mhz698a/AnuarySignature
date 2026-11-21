@@ -342,68 +342,28 @@ class CharacterIconItem(QGraphicsItem):
                             5000,
                         )
 
-                    def on_backup_completed(result, window=main_window):
-                        show_status = getattr(
-                            window,
-                            "show_status_message",
-                            None,
-                        )
-                        if not callable(show_status):
-                            return
-                        warnings = result.get("warnings", [])
-                        if warnings:
-                            show_status(
-                                "Respaldo Structure parcial: "
-                                + "; ".join(warnings)
-                                + ". Revisa antes de subirlo.",
-                                10000,
-                            )
-                        else:
-                            show_status(
-                                "Credencial e imágenes seleccionadas respaldadas "
-                                "en Structure. Pulsa Subir cambios para publicarlas.",
-                                7000,
-                            )
+                    from domain_visor.character_credential_backup_dialog import (
+                        SingleCharacterBackupUiBridge,
+                    )
 
-                    def on_backup_failed(message, window=main_window):
-                        show_status = getattr(
-                            window,
-                            "show_status_message",
-                            None,
-                        )
-                        if callable(show_status):
-                            show_status(
-                                "Credencial guardada localmente, pero falló el "
-                                f"respaldo en Structure: {message}",
-                                10000,
-                            )
+                    bridges = getattr(
+                        main_window,
+                        "_character_backup_bridges",
+                        None,
+                    )
+                    if bridges is None:
+                        bridges = set()
+                        main_window._character_backup_bridges = bridges
 
-                    def on_backup_finished(
-                        backup_worker=worker,
-                        window=main_window,
-                    ):
-                        active_workers = getattr(
-                            window,
-                            "_character_backup_workers",
-                            set(),
-                        )
-                        active_workers.discard(backup_worker)
-                        if (
-                            not active_workers
-                            and not getattr(window, "_closing_application", False)
-                        ):
-                            active_monitor = getattr(
-                                window,
-                                "structure_status_monitor",
-                                None,
-                            )
-                            if active_monitor is not None:
-                                active_monitor.resume(refresh_immediately=True)
-                        backup_worker.deleteLater()
-
-                    worker.completed.connect(on_backup_completed)
-                    worker.failed.connect(on_backup_failed)
-                    worker.finished.connect(on_backup_finished)
+                    bridge = SingleCharacterBackupUiBridge(
+                        main_window,
+                        worker,
+                        main_window,
+                    )
+                    bridges.add(bridge)
+                    worker.completed.connect(bridge.on_completed)
+                    worker.failed.connect(bridge.on_failed)
+                    worker.finished.connect(bridge.on_finished)
                     worker.start()
                 else:
                     show_status_message = getattr(
