@@ -175,3 +175,31 @@ def test_cached_absolute_image_path_from_another_machine_is_not_applied(tmp_path
     assert len(rows) == 1
     assert rows[0]["field"] == "icon_path"
     assert "no existe en este equipo" in rows[0]["error"]
+
+
+
+def test_pending_cache_snapshot_is_not_overwritten_by_a_different_cache(tmp_path):
+    service, credential, structure_dir = setup_service(
+        tmp_path,
+        {
+            "year": 2018,
+            "name": "emiru_aisaki",
+            "alterego": "cure_machérie",
+            "color_group": "rojo",
+        },
+    )
+    first = service.capture_pending_snapshot()
+    original_snapshot = Path(first["snapshot_path"]).read_bytes()
+    service.cache_path.write_text(
+        json.dumps({"2019": []}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    try:
+        service.capture_pending_snapshot()
+    except Exception as error:
+        assert "otra versión pendiente" in str(error)
+    else:
+        raise AssertionError("A different pending snapshot must never be overwritten")
+
+    assert Path(first["snapshot_path"]).read_bytes() == original_snapshot
