@@ -995,7 +995,121 @@ class VasculumApp(QMainWindow):
         self.progress_dialog.finished.connect(self.trigger_render)
         self.progress_dialog.start_loading()
 
+    def _finish_close_after_character_backups(self):
+        """Resume shutdown only after all automatic character backup workers finish."""
+        workers = getattr(self, "_character_backup_workers", set())
+        if any(worker.isRunning() for worker in workers):
+            return
+        self._close_waiting_for_character_backups = False
+        self.close()
+
     def _finish_close_after_structure_status(self):
+        """Resume shutdown after the background Structure status check finishes."""
+        try:
+            self.structure_status_monitor.idle.disconnect(
+                self._finish_close_after_structure_status
+            )
+        except (TypeError, RuntimeError):
+            pass
+        self._close_waiting_for_structure_status = False
+        self.close()
+
+    def closeEvent(self, event):
+        if not self._allow_application_exit:
+            dialog = QMessageBox(self)
+            dialog.setIcon(QMessageBox.Icon.Question)
+            dialog.setWindowTitle("Salir")
+            dialog.setText("¿Desea salir de este programa?")
+
+            close_button = dialog.addButton(
+                "Cerrar la aplicacion",
+                QMessageBox.ButtonRole.AcceptRole
+            )
+            minimize_button = dialog.addButton(
+                "Minimizar en la bandeja",
+                QMessageBox.ButtonRole.ActionRole
+            )
+            cancel_button = dialog.addButton(
+                "Cancelar",
+                QMessageBox.ButtonRole.RejectRole
+            )
+            dialog.setDefaultButton(cancel_button)
+            dialog.exec()
+
+            clicked_button = dialog.clickedButton()
+            if clicked_button is minimize_button:
+                if (
+                    self.tray_controller is None
+                    or not self.tray_controller.is_available()
+                ):
+                    QMessageBox.warning(
+                        self,
+                        "Bandeja del sistema no disponible",
+                        "No se puede minimizar en la bandeja porque el sistema "
+                        "no tiene un área de notificación disponible."
+                    )
+                    event.ignore()
+                    return
+
+                self.settings.setValue("splitter_state", self.splitter.saveState())
+                self.hide()
+                event.ignore()
+                return
+
+            if clicked_button is not close_button:
+                event.ignore()
+                return
+
+            self._allow_application_exit = True
+
+        self._closing_application = True
+        self.settings.setValue("splitter_state", self.splitter.saveState())
+
+        if hasattr(self, "structure_status_monitor"):
+            self.structure_status_monitor.stop()
+            worker = self.structure_status_monitor._worker
+            if worker is not None and worker.isRunning():
+                if not getattr(self, "_close_waiting_for_structure_status", False):
+                    self._close_waiting_for_structure_status = True
+                    self.setEnabled(False)
+                    self.structure_status_monitor.idle.connect(
+                        self._finish_close_after_structure_status
+                    )
+                event.ignore()
+                return
+
+        active_backup_workers = [
+            worker
+            for worker in getattr(self, "_character_backup_workers", set())
+            if worker.isRunning()
+        ]
+        if active_backup_workers:
+            if not getattr(self, "_close_waiting_for_character_backups", False):
+                self._close_waiting_for_character_backups = True
+                self.setEnabled(False)
+                for worker in active_backup_workers:
+                    worker.finished.connect(
+                        self._finish_close_after_character_backups
+                    )
+            event.ignore()
+            return
+
+        if hasattr(self, "progress_dialog") and self.progress_dialog:
+            try:
+                self.progress_dialog.cancel_loading()
+                if self.progress_dialog.thread.isRunning():
+                    self.progress_dialog.thread.wait()
+                self.progress_dialog.close()
+            except Exception:
+                pass
+
+        if self.tray_controller is not None:
+            self.tray_controller.hide()
+
+        event.accept()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
         """Resume shutdown after the background Structure status check finishes."""
         try:
             self.structure_status_monitor.idle.disconnect(
