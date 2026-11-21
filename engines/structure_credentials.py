@@ -150,7 +150,7 @@ class _WindowsCredentialBackend:
             ).decode("utf-16-le")
             return credential.UserName or "", token
         finally:
-            api.CredFree(credential_pointer)
+            api.CredFree(ctypes.cast(credential_pointer, ctypes.c_void_p))
 
     def delete(self) -> None:
         if os.name != "nt":
@@ -273,6 +273,7 @@ class StructureGitHubCredentialStore:
             if parsed_expiration < date.today():
                 raise ValueError("La fecha de expiración debe ser hoy o posterior.")
 
+        previous_credentials = self.backend.read()
         self.backend.write(clean_username, clean_token)
         metadata = {
             "username": clean_username,
@@ -289,10 +290,13 @@ class StructureGitHubCredentialStore:
             )
             temporary_path.replace(self.metadata_path)
         except OSError as error:
-            self.backend.delete()
+            if previous_credentials:
+                self.backend.write(*previous_credentials)
+            else:
+                self.backend.delete()
             raise StructureCredentialError(
-                "El token se guardó en Windows, pero no se pudo guardar su "
-                "fecha de expiración. No se conservará la credencial."
+                "No se pudo guardar la fecha de expiración. Se restauró la "
+                "credencial anterior y no se aplicó el cambio."
             ) from error
 
     def delete_token(self) -> None:
@@ -324,7 +328,7 @@ class StructureGitHubCredentialStore:
 
         environment["GIT_CONFIG_COUNT"] = str(first_index + 2)
         environment[f"GIT_CONFIG_KEY_{first_index}"] = (
-            "http.https://github.com/mhz698a/AnuarySignature-Structure.git/.extraheader"
+            "http.https://github.com/.extraheader"
         )
         environment[f"GIT_CONFIG_VALUE_{first_index}"] = (
             f"AUTHORIZATION: basic {basic_auth}"
