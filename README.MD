@@ -64,8 +64,9 @@ Git operations run without opening visible Windows console windows. The
 
 ## Dependent-drive directory report
 
-AnuarySignature can generate a directory-only inventory of the configured
-dependent drive. The report is stored in the private Structure checkout at:
+AnuarySignature can generate an inventory of the configured dependent drive,
+including directory structure and references to character credential files.
+The report is stored in the private Structure checkout at:
 
 ```text
 __structure__/dependent_directory_report.json
