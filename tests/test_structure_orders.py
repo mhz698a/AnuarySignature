@@ -285,3 +285,28 @@ def test_replace_character_asset_rejects_asset_outside_order_assets_directory(tm
         assert "traversal" in str(error) or "debe estar bajo orders/assets" in str(error)
     else:
         raise AssertionError("Order image assets must remain inside orders/assets")
+
+
+def test_shared_applied_result_prevents_reapplication_on_another_machine(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    pending = structure_dir / "orders" / "pending"
+    results = structure_dir / "orders" / "results"
+    results.mkdir(parents=True, exist_ok=True)
+    order = make_order({
+        "type": "create_directory",
+        "path": "2018/15. already-applied",
+    }, order_id="order-shared-01")
+    (pending / "already-applied.json").write_text(
+        json.dumps(order),
+        encoding="utf-8",
+    )
+    (results / "order-shared-01.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "order_id": "order-shared-01",
+            "status": "applied",
+        }),
+        encoding="utf-8",
+    )
+
+    assert service.load_pending_orders() == []
