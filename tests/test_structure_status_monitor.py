@@ -84,10 +84,10 @@ def test_status_monitor_reports_conflicts_before_other_states():
     assert color == "#f48771"
 
 
-def test_status_monitor_reports_wrong_branch():
+def test_status_monitor_treats_clean_feature_branch_as_synchronized():
     label, tooltip, color = StructureStatusMonitor._format_status(
         {
-            "branch": "feature",
+            "branch": "phase-6/reviewed-character-colours",
             "ahead": 0,
             "behind": 0,
             "local_change_count": 0,
@@ -95,9 +95,9 @@ def test_status_monitor_reports_wrong_branch():
         }
     )
 
-    assert label == "BRANCH feature"
-    assert "Rama: feature" in tooltip
-    assert color == "#e5a65e"
+    assert label == "STRUCTURE · SYNC"
+    assert "Rama: phase-6/reviewed-character-colours" in tooltip
+    assert color == "#8ccf9b"
 
 
 def test_status_monitor_reports_clean_repository():
