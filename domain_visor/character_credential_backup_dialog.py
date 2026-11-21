@@ -105,7 +105,7 @@ class CharacterCredentialBackupDialog(QDialog):
             "repositorio privado Structure. Si cambia una imagen, se reemplaza "
             "solo su copia dentro del respaldo; el original de la unidad "
             "dependiente no se modifica.\n\n"
-            "Los archivos se copiarán al checkout local de Structure. Después "
+            "Solo se copiarán la credencial y sus imágenes seleccionadas; no se copiarán las demás imágenes de la carpeta. Los archivos se copiarán al checkout local de Structure. Después "
             "de revisar el resultado, utiliza Subir cambios para publicarlos "
             "en GitHub."
         )
@@ -146,7 +146,7 @@ class CharacterCredentialBackupDialog(QDialog):
         self.completed_successfully = True
         self.status_label.setText(
             "Proceso de respaldo terminado.\n\n"
-            f"Personajes en caché: {result.get('total', 0)}\n"
+            f"Personajes encontrados: {result.get('discovered', 0)}\n"
             f"Respaldados: {result.get('backed_up', 0)}\n"
             f"Con error: {result.get('failed', 0)}\n"
             "Advertencias de imágenes: "
