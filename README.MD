@@ -110,6 +110,10 @@ The researched cache update is reviewed separately in
 
 ## Phase 7 — Character credential backups
 
+The character cache is an index of paths and metadata; it does not contain the
+full individual credential JSON files or image bytes. The actual JSON
+credentials remain in the character folders on the dependent drive.
+
 AnuarySignature stores a replaceable backup for each character under
 `__structure__/character_credentials/<year>/<alterego>--<name>/` in the private
 Structure checkout. Each entry contains the original credential JSON, the
@@ -117,8 +121,11 @@ selected `icon_path` image, the selected `background_path` image when present,
 and a manifest with hashes and source-relative metadata.
 
 Saving a character automatically refreshes that character's local Structure
-backup. To back up the entire character cache, use
-**Herramientas → Respaldar credenciales de personajes en Structure**.
+backup. To back up every character credential on disk (not only the profiles
+currently represented in the UI cache), use
+**Herramientas → Respaldar credenciales de personajes en Structure**. The scan
+locates character folders under each year's album directory and copies only the
+credential JSON plus its selected icon/background resources.
 Image changes replace the previous backup copy in that character's archive
 folder; they never delete or alter the source image in the dependent drive.
 Only selected icon/background assets are copied, not every image in the folder.
