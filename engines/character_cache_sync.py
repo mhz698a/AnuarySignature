@@ -122,7 +122,7 @@ class CharacterCacheSyncService:
         """Preserve the current cache without overwriting a different pending snapshot."""
         payload = self._read_cache(self.cache_path)
         raw = self.cache_path.read_bytes()
-        if self.pending_snapshot_path.exists():
+        if self.pending_snapshot_path.exists() or self.pending_snapshot_path.is_symlink():
             if not self._is_plain_file(self.pending_snapshot_path):
                 raise CharacterCacheSyncError(
                     "El snapshot pendiente no es un archivo regular. No se leerá ni sobrescribirá."
@@ -156,8 +156,13 @@ class CharacterCacheSyncService:
 
     def ensure_pending_snapshot(self) -> None:
         """Use an existing deferred snapshot, or capture the current cache for manual review."""
-        if not self.pending_snapshot_path.exists():
-            self.capture_pending_snapshot()
+        if self.pending_snapshot_path.exists() or self.pending_snapshot_path.is_symlink():
+            if not self._is_plain_file(self.pending_snapshot_path):
+                raise CharacterCacheSyncError(
+                    "El snapshot pendiente no es un archivo regular. No se sobrescribirá."
+                )
+            return
+        self.capture_pending_snapshot()
 
     def has_pending_snapshot(self) -> bool:
         return self._is_plain_file(self.pending_snapshot_path)
