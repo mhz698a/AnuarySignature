@@ -16,6 +16,20 @@ from engines.structure_backups import StructureBackupManager
 from engines.structure_credentials import StructureGitHubCredentialStore
 
 
+def _background_process_options() -> dict[str, Any]:
+    """Prevent Git and its child processes from flashing a console on Windows."""
+    if os.name != "nt":
+        return {}
+
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return {
+        "creationflags": subprocess.CREATE_NO_WINDOW,
+        "startupinfo": startupinfo,
+    }
+
+
 class StructureSyncError(RuntimeError):
     """Raised when a safe Structure synchronization operation cannot proceed."""
 
@@ -48,15 +62,7 @@ class StructureSyncService:
         environment["GIT_TERMINAL_PROMPT"] = "0"
         environment = self.credentials.apply_git_authentication(environment)
 
-        process_options = {}
-        if os.name == "nt":
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = 0
-            process_options = {
-                "creationflags": subprocess.CREATE_NO_WINDOW,
-                "startupinfo": startupinfo,
-            }
+        process_options = _background_process_options()
 
         try:
             result = subprocess.run(
