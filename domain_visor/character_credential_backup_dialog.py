@@ -84,10 +84,10 @@ class SingleCharacterBackupWorker(QThread):
         if backup_error is not None:
             message = backup_error
             if report_error is None:
-                message += "\\nEl reporte de la unidad dependiente sí fue actualizado."
+                message += "\nEl reporte de la unidad dependiente sí fue actualizado."
             else:
                 message += (
-                    "\\nTampoco se pudo actualizar el reporte de la unidad dependiente: "
+                    "\nTampoco se pudo actualizar el reporte de la unidad dependiente: "
                     + report_error
                 )
             self.failed.emit(message)
@@ -123,6 +123,8 @@ class SingleCharacterBackupUiBridge(QObject):
                     "El reporte de la unidad dependiente no se actualizó: "
                     + report_error
                 )
+            elif result.get("dependent_report_updated"):
+                details.append("El reporte de la unidad dependiente fue actualizado.")
             show_status(
                 "Respaldo Structure parcial. "
                 + " ".join(details)
