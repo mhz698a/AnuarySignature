@@ -107,10 +107,22 @@ class StructureSyncService:
                         "Administrar token o inicia sesión mediante Git Credential Manager."
                     )
                 detail = guidance + (f"\n{detail}" if detail else "")
-            elif "repository not found" in lowered or "access denied" in lowered:
+            elif (
+                "repository not found" in lowered
+                or "access denied" in lowered
+            ):
                 detail = (
                     "No se pudo acceder al repositorio privado. Comprueba que la cuenta "
                     "tenga permiso sobre AnuarySignature-Structure."
+                    + (f"\n{detail}" if detail else "")
+                )
+            elif (
+                "write access to repository not granted" in lowered
+                or ("permission to " in lowered and " denied" in lowered)
+            ):
+                detail = (
+                    "El token no tiene permiso para subir cambios. En GitHub revisa "
+                    "Repository permissions → Contents → Read and write."
                     + (f"\n{detail}" if detail else "")
                 )
             raise StructureSyncError(detail or "Git devolvió un error.")
