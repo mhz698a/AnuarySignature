@@ -471,12 +471,12 @@ class StructureOrderService:
                     )
                 credential_path = json_candidates[0]
 
+            if not self._is_plain_file(credential_path):
+                raise StructureOrderError(
+                    "La credencial debe ser un archivo regular, no un enlace simbólico."
+                )
             credential_path = credential_path.resolve()
-            if (
-                not credential_path.is_relative_to(self.dependent_root)
-                or credential_path.is_symlink()
-                or not credential_path.is_file()
-            ):
+            if not credential_path.is_relative_to(self.dependent_root):
                 raise StructureOrderError(
                     "La credencial no es un archivo regular dentro de la unidad dependiente."
                 )
