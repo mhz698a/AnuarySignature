@@ -490,7 +490,7 @@ class VasculumApp(QMainWindow):
         )
 
     def open_character_credential_backup(self):
-        """Back up the complete cached character set to the local Structure checkout."""
+        """Back up all on-disk character credentials to the local Structure checkout."""
         from domain_visor.character_credential_backup_dialog import (
             CharacterCredentialBackupDialog,
         )
