@@ -46,6 +46,7 @@ class CharacterCacheSyncDialog(QDialog):
         self.worker = None
         self.applied = False
         self.apply_result = None
+        self.discarded = False
         self._has_selectable_rows = False
         self._close_after_worker = False
 
@@ -131,6 +132,10 @@ class CharacterCacheSyncDialog(QDialog):
         self.refresh_button = QPushButton("Volver a comparar")
         self.refresh_button.clicked.connect(self._start_preview)
         footer.addWidget(self.refresh_button)
+        self.discard_button = QPushButton("Descartar snapshot pendiente")
+        self.discard_button.clicked.connect(self._confirm_discard_snapshot)
+        self.discard_button.setEnabled(self.service.has_pending_snapshot())
+        footer.addWidget(self.discard_button)
         footer.addStretch()
         self.apply_button = QPushButton("Aplicar seleccionados")
         self.apply_button.clicked.connect(self._confirm_apply)
@@ -158,6 +163,9 @@ class CharacterCacheSyncDialog(QDialog):
         self.refresh_button.setEnabled(not busy)
         self.apply_button.setEnabled(not busy and self._has_selectable_rows)
         self.close_button.setEnabled(not busy)
+        self.discard_button.setEnabled(
+            not busy and self.service.has_pending_snapshot()
+        )
         self.table.setEnabled(not busy)
 
     def _start_worker(self, operation: str, callback):
@@ -247,6 +255,35 @@ class CharacterCacheSyncDialog(QDialog):
                     selected.append(row_data)
         return selected
 
+    def _confirm_discard_snapshot(self):
+        if not self.service.has_pending_snapshot():
+            return
+        reply = QMessageBox.warning(
+            self,
+            "Descartar snapshot pendiente",
+            "Se eliminará únicamente la copia de revisión de characters_cache.json "
+            "guardada en AppData. No se modificarán ni eliminarán credenciales locales, "
+            "imágenes ni archivos del repositorio Structure. La operación no se puede deshacer. "
+            "¿Descartar esta copia pendiente?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.discarded = self.service.discard_pending_snapshot()
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "No se pudo descartar el snapshot",
+                str(error),
+            )
+            return
+        self.status_label.setText(
+            "Snapshot pendiente descartado. No se modificaron las credenciales locales."
+        )
+        self.accept()
+
     def _confirm_apply(self):
         selected = self._selected_rows()
         if not selected:
@@ -288,6 +325,7 @@ class CharacterCacheSyncDialog(QDialog):
         if operation == "preview":
             self._populate_rows(result)
             if not result:
+                self.service.discard_pending_snapshot()
                 self.status_label.setText(
                     "No hay diferencias entre el caché de Structure y las credenciales locales."
                 )
