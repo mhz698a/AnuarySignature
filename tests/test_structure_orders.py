@@ -310,3 +310,20 @@ def test_shared_applied_result_prevents_reapplication_on_another_machine(tmp_pat
     )
 
     assert service.load_pending_orders() == []
+
+
+def test_generic_json_update_cannot_bypass_character_credential_validation(tmp_path):
+    service, manager, dependent, structure_dir, credential = setup_order_service(tmp_path)
+    relative = credential.relative_to(dependent).as_posix()
+    order = make_order({
+        "type": "update_dependent_json",
+        "path": relative,
+        "document": {"character_data": {"color_group": "rojo"}},
+    }, order_id="order-cred-bypass")
+
+    try:
+        service.validate_order(order)
+    except StructureOrderError as error:
+        assert "update_character_credential" in str(error)
+    else:
+        raise AssertionError("Character credentials must use the character-aware operation")
