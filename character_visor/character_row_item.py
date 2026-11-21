@@ -295,55 +295,125 @@ class CharacterIconItem(QGraphicsItem):
                             break
                     mgr.save_cache_file()
 
-            backup_result = None
-            backup_error = None
-            try:
-                from engines.character_credential_backup import (
-                    CharacterCredentialBackupService,
-                )
-                if mgr is None:
-                    raise RuntimeError(
-                        "No se encontró el gestor de personajes para respaldar la credencial."
-                    )
-                backup_result = CharacterCredentialBackupService(
-                    mgr.base_path
-                ).backup_character(new_data)
-            except Exception as error:
-                backup_error = str(error)
-
             self.update()
 
             if view:
-                
                 main_window = view.window()
                 if callable(getattr(main_window, "trigger_render", None)):
                     main_window.trigger_render()
-                    show_status_message = getattr(main_window, "show_status_message", None)
+
+                if mgr is not None:
+                    from domain_visor.character_credential_backup_dialog import (
+                        SingleCharacterBackupWorker,
+                    )
+
+                    workers = getattr(
+                        main_window,
+                        "_character_backup_workers",
+                        None,
+                    )
+                    if workers is None:
+                        workers = set()
+                        main_window._character_backup_workers = workers
+
+                    worker = SingleCharacterBackupWorker(
+                        mgr.base_path,
+                        new_data,
+                        main_window,
+                    )
+                    workers.add(worker)
+
+                    monitor = getattr(
+                        main_window,
+                        "structure_status_monitor",
+                        None,
+                    )
+                    if monitor is not None:
+                        monitor.pause()
+
+                    show_status_message = getattr(
+                        main_window,
+                        "show_status_message",
+                        None,
+                    )
                     if callable(show_status_message):
-                        if backup_error:
-                            show_status_message(
-                                "Credencial guardada localmente; el respaldo en "
-                                f"Structure falló: {backup_error}",
-                                10000,
-                            )
-                        elif backup_result and backup_result.get("warnings"):
-                            show_status_message(
-                                "Credencial respaldada en Structure, pero alguna "
-                                "imagen no pudo copiarse: "
-                                + "; ".join(backup_result["warnings"])
-                                + ". Revisa el respaldo antes de subirlo.",
+                        show_status_message(
+                            "Credencial guardada localmente. Respaldando JSON e imágenes en Structure…",
+                            5000,
+                        )
+
+                    def on_backup_completed(result, window=main_window):
+                        show_status = getattr(
+                            window,
+                            "show_status_message",
+                            None,
+                        )
+                        if not callable(show_status):
+                            return
+                        warnings = result.get("warnings", [])
+                        if warnings:
+                            show_status(
+                                "Respaldo Structure parcial: "
+                                + "; ".join(warnings)
+                                + ". Revisa antes de subirlo.",
                                 10000,
                             )
                         else:
-                            show_status_message(
-                                "Credencial y recursos seleccionados respaldados en "
-                                "Structure. Pulsa Subir cambios para publicarlos en GitHub.",
-                                6000,
+                            show_status(
+                                "Credencial e imágenes seleccionadas respaldadas "
+                                "en Structure. Pulsa Subir cambios para publicarlas.",
+                                7000,
                             )
 
-                    monitor = getattr(main_window, "structure_status_monitor", None)
-                    if monitor is not None and backup_result is not None:
-                        monitor.refresh_now()
+                    def on_backup_failed(message, window=main_window):
+                        show_status = getattr(
+                            window,
+                            "show_status_message",
+                            None,
+                        )
+                        if callable(show_status):
+                            show_status(
+                                "Credencial guardada localmente, pero falló el "
+                                f"respaldo en Structure: {message}",
+                                10000,
+                            )
+
+                    def on_backup_finished(
+                        backup_worker=worker,
+                        window=main_window,
+                    ):
+                        active_workers = getattr(
+                            window,
+                            "_character_backup_workers",
+                            set(),
+                        )
+                        active_workers.discard(backup_worker)
+                        if not active_workers:
+                            active_monitor = getattr(
+                                window,
+                                "structure_status_monitor",
+                                None,
+                            )
+                            if active_monitor is not None:
+                                active_monitor.resume(refresh_immediately=True)
+                        backup_worker.deleteLater()
+
+                    worker.completed.connect(on_backup_completed)
+                    worker.failed.connect(on_backup_failed)
+                    worker.finished.connect(on_backup_finished)
+                    worker.start()
+                else:
+                    show_status_message = getattr(
+                        main_window,
+                        "show_status_message",
+                        None,
+                    )
+                    if callable(show_status_message):
+                        show_status_message(
+                            "Credencial guardada localmente, pero no se encontró "
+                            "el gestor de personajes para respaldarla.",
+                            10000,
+                        )
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._size, self._size)
