@@ -18,7 +18,6 @@ from PyQt6.QtWidgets import (
 
 from domain_visor.theme import Theme
 from engines.dependent_directory_report import (
-    DEFAULT_EXCLUDED_DIRECTORY_NAMES,
     DependentDirectoryReportService,
     REPORT_FILENAME,
     REPORT_SETTINGS_FILENAME,
@@ -276,10 +275,6 @@ class DependentDirectoryReportDialog(QDialog):
     def _collect_exclusion_preferences(self) -> tuple[list[str], list[str]]:
         excluded = set(self._preferences.get("excluded_directories", []))
         included = set(self._preferences.get("included_directories", []))
-        default_names = {
-            name.casefold() for name in DEFAULT_EXCLUDED_DIRECTORY_NAMES
-        }
-
         for year_index in range(self.directory_tree.topLevelItemCount()):
             year_item = self.directory_tree.topLevelItem(year_index)
             for folder_index in range(year_item.childCount()):
@@ -297,7 +292,7 @@ class DependentDirectoryReportDialog(QDialog):
 
                 if folder_item.checkState(1) == Qt.CheckState.Checked:
                     excluded.add(key)
-                elif folder_name in default_names:
+                elif self.service.is_default_excluded_directory_name(folder_name):
                     # Explicitly allow this one year-level folder despite the default.
                     included.add(key)
 
