@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
-from engines.character_cache_sync import CharacterCacheSyncService
+import pytest
+
+from engines.character_cache_sync import (
+    CharacterCacheSyncError,
+    CharacterCacheSyncService,
+)
 
 
 class FakeCharacterManager:
@@ -195,11 +200,7 @@ def test_pending_cache_snapshot_is_not_overwritten_by_a_different_cache(tmp_path
         encoding="utf-8",
     )
 
-    try:
+    with pytest.raises(CharacterCacheSyncError, match="otra versión pendiente"):
         service.capture_pending_snapshot()
-    except Exception as error:
-        assert "otra versión pendiente" in str(error)
-    else:
-        raise AssertionError("A different pending snapshot must never be overwritten")
 
     assert Path(first["snapshot_path"]).read_bytes() == original_snapshot
