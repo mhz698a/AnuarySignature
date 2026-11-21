@@ -187,6 +187,11 @@ class CharacterCredentialBackupService:
         """Back up the on-disk credential and the currently selected icon/background."""
         if not isinstance(character, dict):
             raise CharacterCredentialBackupError("El registro de personaje no es válido.")
+        if not self.structure_dir.is_dir() or not (self.structure_dir / ".git").exists():
+            raise CharacterCredentialBackupError(
+                "El repositorio privado Structure no está clonado correctamente. "
+                "No se creó un respaldo fuera del checkout Git."
+            )
 
         credential_value = str(character.get("character_json_path") or "").strip()
         if not credential_value:
