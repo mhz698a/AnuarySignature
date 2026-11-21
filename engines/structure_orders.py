@@ -435,6 +435,15 @@ class StructureOrderService:
                     )
                 credential_path = json_candidates[0]
 
+            credential_path = credential_path.resolve()
+            if (
+                not credential_path.is_relative_to(self.dependent_root)
+                or credential_path.is_symlink()
+                or not credential_path.is_file()
+            ):
+                raise StructureOrderError(
+                    "La credencial no es un archivo regular dentro de la unidad dependiente."
+                )
             try:
                 payload = json.loads(credential_path.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
