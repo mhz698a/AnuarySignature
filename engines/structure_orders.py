@@ -350,35 +350,159 @@ class StructureOrderService:
             "update_dependent_json y create_directory."
         )
 
+    @staticmethod
+    def _is_plain_directory(path: Path) -> bool:
+        """Reject symlinks and Windows reparse-point directories."""
+        import stat
+
+        try:
+            info = path.lstat()
+        except OSError:
+            return False
+        if stat.S_ISLNK(info.st_mode):
+            return False
+        if getattr(info, "st_file_attributes", 0) & 0x400:
+            return False
+        return stat.S_ISDIR(info.st_mode)
+
     def _find_character_credential(self, target: dict[str, Any]) -> tuple[Path, dict]:
-        candidates = self.character_manager._cache.get(str(target["year"]), [])
-        matches = [
-            item for item in candidates
-            if str(item.get("name", "")).casefold() == target["name"].casefold()
-            and str(item.get("alterego", "")).casefold() == target["alterego"].casefold()
-        ]
+        """Resolve a character directly on disk; the six-item UI cache is not authoritative."""
+        year = int(target["year"])
+        year_root = self.dependent_root / str(year)
+        prefix = f"{max(0, year - 2003):02d}"
+        album_root = year_root / f"{prefix}. album"
+
+        if not self._is_plain_directory(year_root) or not self._is_plain_directory(album_root):
+            raise StructureOrderError(
+                f"No existe el directorio de álbum para {year} en la unidad dependiente."
+            )
+
+        matches: list[tuple[Path, dict[str, Any]]] = []
+        try:
+            character_directories = sorted(
+                (
+                    path for path in album_root.iterdir()
+                    if self._is_plain_directory(path)
+                ),
+                key=lambda path: path.name.casefold(),
+            )
+        except OSError as error:
+            raise StructureOrderError(
+                f"No se pudieron enumerar los personajes del año {year}: {error}"
+            ) from error
+
+        for character_dir in character_directories:
+            folder_name = character_dir.name
+            folder_prefix = f"{prefix}. "
+            if not folder_name.startswith(folder_prefix):
+                continue
+            if folder_name.count(";") != 4:
+                continue
+            parts = folder_name[len(folder_prefix):].split(";")
+            if len(parts) != 5:
+                continue
+            raw_position, folder_alterego, folder_name_value, birthday, raw_age = parts
+            try:
+                int(raw_position)
+                int(raw_age)
+                datetime.strptime(birthday, "%Y-%m-%d")
+            except (TypeError, ValueError):
+                continue
+
+            if (
+                folder_name_value.casefold() != target["name"].casefold()
+                or folder_alterego.casefold() != target["alterego"].casefold()
+            ):
+                continue
+
+            expected_json = character_dir / f"__{folder_name_value}__.json"
+            if expected_json.is_file():
+                credential_path = expected_json
+            else:
+                try:
+                    json_candidates = sorted(
+                        path for path in character_dir.glob("__*.json")
+                        if path.is_file() and not path.is_symlink()
+                    )
+                except OSError as error:
+                    raise StructureOrderError(
+                        f"No se pudo localizar la credencial de {folder_name_value}: {error}"
+                    ) from error
+                if len(json_candidates) != 1:
+                    raise StructureOrderError(
+                        f"La carpeta de {folder_name_value} no contiene una credencial "
+                        "única __*.json."
+                    )
+                credential_path = json_candidates[0]
+
+            try:
+                payload = json.loads(credential_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise StructureOrderError(
+                    f"No se pudo leer la credencial de {folder_name_value}: {error}"
+                ) from error
+
+            character_data = payload.get("character_data")
+            if not isinstance(character_data, dict):
+                raise StructureOrderError(
+                    f"La credencial de {folder_name_value} no contiene character_data."
+                )
+
+            disk_name = str(character_data.get("name") or folder_name_value)
+            disk_alterego = str(character_data.get("alterego") or folder_alterego)
+            if (
+                disk_name.casefold() != target["name"].casefold()
+                or disk_alterego.casefold() != target["alterego"].casefold()
+            ):
+                raise StructureOrderError(
+                    "El contenido de la credencial no coincide con el personaje "
+                    "declarado en el nombre de carpeta."
+                )
+
+            runtime_character = dict(character_data)
+            runtime_character.update({
+                "year": year,
+                "name": disk_name,
+                "alterego": disk_alterego,
+                "position": int(raw_position),
+                "birthday": birthday,
+                "age": int(raw_age),
+                "character_json_path": str(credential_path.resolve()),
+            })
+            matches.append((credential_path.resolve(), runtime_character))
+
         if len(matches) != 1:
             raise StructureOrderError(
-                "El personaje no se encontró de forma única en characters_cache.json. "
+                "El personaje no se encontró de forma única en el directorio del año. "
                 "No se modificó ningún archivo."
             )
 
-        cached_character = matches[0]
-        raw_path = str(cached_character.get("character_json_path") or "").strip()
-        if not raw_path:
-            raise StructureOrderError(
-                "El personaje no tiene character_json_path en la caché."
-            )
-        credential_path = Path(raw_path).expanduser().resolve()
+        credential_path, disk_character = matches[0]
         if not credential_path.is_relative_to(self.dependent_root):
             raise StructureOrderError(
                 "La credencial del personaje está fuera de la unidad dependiente."
             )
-        if not credential_path.is_file():
-            raise StructureOrderError(
-                f"No existe la credencial del personaje: {credential_path}"
-            )
-        return credential_path, cached_character
+
+        cached_match = next(
+            (
+                item
+                for item in self.character_manager._cache.get(str(year), [])
+                if str(item.get("name", "")).casefold() == target["name"].casefold()
+                and str(item.get("alterego", "")).casefold() == target["alterego"].casefold()
+            ),
+            None,
+        )
+        if cached_match is not None:
+            cached_match.update({
+                key: value for key, value in disk_character.items()
+                if key in {
+                    "year", "name", "alterego", "character_json_path",
+                    "icon_path", "background_path", "color_group", "secondary_color",
+                }
+            })
+            return credential_path, cached_match
+
+        return credential_path, disk_character
 
     def _create_prechange_backup(
         self,
