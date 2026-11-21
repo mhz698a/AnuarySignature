@@ -414,11 +414,19 @@ class CharacterCredentialBackupService:
                 prefix_to_check = f"{prefix}. "
                 if not folder_name.startswith(prefix_to_check):
                     continue
+                if folder_name.count(";") != 4:
+                    continue
                 parts = folder_name[len(prefix_to_check):].split(";")
                 if len(parts) != 5:
                     continue
 
-                _, folder_alterego, folder_name_value, _, _ = parts
+                raw_position, folder_alterego, folder_name_value, birthday, raw_age = parts
+                try:
+                    int(raw_position)
+                    int(raw_age)
+                    datetime.strptime(birthday, "%Y-%m-%d")
+                except (TypeError, ValueError):
+                    continue
                 expected_json = character_dir / f"__{folder_name_value}__.json"
                 if expected_json.is_file():
                     credential_path = expected_json
