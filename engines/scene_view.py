@@ -501,9 +501,9 @@ class VasculumApp(QMainWindow):
             self,
         )
         dialog.exec()
-        if dialog.result is not None:
+        if dialog.backup_result is not None:
             self.structure_status_monitor.refresh_now()
-            result = dialog.result
+            result = dialog.backup_result
             self.show_status_message(
                 f"Respaldo Structure: {result.get('backed_up', 0)} personajes, "
                 f"{result.get('failed', 0)} errores. Revisa PUSH para publicarlo.",
