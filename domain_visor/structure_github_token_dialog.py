@@ -217,7 +217,7 @@ class StructureGitHubTokenDialog(QDialog):
         )
 
         self.status_label.setText(
-            "Validando la cuenta, el acceso al repositorio y el permiso de escritura…"
+            "Validando la cuenta de GitHub y el acceso al repositorio privado…"
         )
         self._set_busy(True)
         self.worker = _TokenValidationWorker(token, self)
