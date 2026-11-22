@@ -252,7 +252,7 @@ class YearStructureSyncDialog(QDialog):
             f"({', '.join(result.get('years', []))})   |   "
             f"Categorías principales: {result.get('category_count', 0)}   |   "
             f"Entradas de subcarpetas plantilla conservadas: "
-            f"{result.get('subfolder_count', 0)}\\n"
+            f"{result.get('subfolder_count', 0)}\n"
             f"Categorías nuevas: {len(added_categories)}   |   "
             f"Categorías retiradas: {len(removed_categories)}"
         )
@@ -280,7 +280,7 @@ class YearStructureSyncDialog(QDialog):
                 ),
             ]
         )
-        self.preview_edit.setPlainText("\\n".join(diff_lines))
+        self.preview_edit.setPlainText("\n".join(diff_lines))
 
     def _confirm_and_apply(self) -> None:
         result = self._preview_result
@@ -288,20 +288,7 @@ class YearStructureSyncDialog(QDialog):
             return
 
         removed_categories = result.get("removed_categories", [])
-        details = [
-            "Se reconstruirá folders.json con la unión de las carpetas "
-            "encontradas en todos los años.",
-            "",
-            "Las categorías y subcarpetas que ya no existan en ningún año "
-            "se retirarán del JSON. Las que sigan presentes al menos en un "
-            "año se conservarán.",
-        ]
-        if removed_categor    def _confirm_and_apply(self) -> None:
-        result = self._preview_result
-        if result is None or not result.get("changed"):
-            return
-
-        removed_categories = result.get("removed_categories", [])
+        added_categories = result.get("added_categories", [])
         details = [
             "Se actualizarán únicamente las carpetas principales de folders.json "
             "según las carpetas principales encontradas en todos los años.",
@@ -317,7 +304,6 @@ class YearStructureSyncDialog(QDialog):
                     *removed_categories,
                 ]
             )
-        added_categories = result.get("added_categories", [])
         if added_categories:
             details.extend(
                 [
@@ -339,7 +325,7 @@ class YearStructureSyncDialog(QDialog):
         reply = QMessageBox.question(
             self,
             "Confirmar sincronización",
-            "\\n".join(details),
+            "\n".join(details),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
