@@ -11,16 +11,19 @@ import json
 import os
 import re
 import tempfile
+from collections import Counter
 from datetime import datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Callable
 
 
 REPORT_FILENAME = "dependent_directory_report.json"
 REPORT_SETTINGS_FILENAME = "dependent_directory_report_settings.json"
+REPORT_TEXT_FILENAME = "dependent_directory_report.txt"
 MAX_SUBFOLDER_LEVELS_AFTER_YEAR = 2
 DEFAULT_EXCLUDED_DIRECTORY_NAMES = ("resources.local.personal",)
 _YEAR_DIRECTORY_PATTERN = re.compile(r"^\d{4}$")
+_DIRECTORY_NUMBER_PREFIX_PATTERN = re.compile(r"^\s*\d+\.\s*(?P<name>.+?)\s*$")
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _CREDENTIAL_FILENAME_PATTERN = re.compile(r"^__.*\.json$", re.IGNORECASE)
 
@@ -89,48 +92,80 @@ class DependentDirectoryReportService:
 
         return sorted(directories, key=lambda entry: entry.name.casefold())
 
-    @staticmethod
-    def _canonical_relative_directory(raw_path: str) -> str:
-        """Validate and normalize a year-relative directory identifier."""
-        if not isinstance(raw_path, str) or not raw_path.strip():
-            raise DependentDirectoryReportError(
-                "La ruta relativa de exclusión está vacía."
-            )
-
-        normalized = raw_path.strip().replace("\\", "/")
-        relative = PurePosixPath(normalized)
-        if (
-            relative.is_absolute()
-            or len(relative.parts) < 2
-            or any(part in {"", ".", ".."} for part in relative.parts)
-        ):
-            raise DependentDirectoryReportError(
-                f"Ruta de exclusión no válida: {raw_path}"
-            )
-        if not _YEAR_DIRECTORY_PATTERN.fullmatch(relative.parts[0]):
-            raise DependentDirectoryReportError(
-                f"La exclusión debe comenzar con un año de cuatro dígitos: {raw_path}"
-            )
-        return relative.as_posix().casefold()
+    @classmethod
+    def _directory_category_key(cls, folder_name: str) -> str:
+        """Return the semantic folder name without its year-specific number."""
+        normalized = str(folder_name or "").strip()
+        match = _DIRECTORY_NUMBER_PREFIX_PATTERN.fullmatch(normalized)
+        if match:
+            normalized = match.group("name")
+        return re.sub(r"\s+", " ", normalized).strip().casefold()
 
     @classmethod
-    def _normalise_exclusion_list(cls, values: Any) -> list[str]:
+    def _directory_category_label(cls, folder_name: str) -> str:
+        """Display numbered categories with a neutral xx. prefix."""
+        normalized = str(folder_name or "").strip()
+        match = _DIRECTORY_NUMBER_PREFIX_PATTERN.fullmatch(normalized)
+        if match:
+            return f"xx. {match.group('name').strip()}"
+        return normalized
+
+    @classmethod
+    def _normalise_directory_name_list(cls, values: Any) -> list[str]:
         if not isinstance(values, list):
             raise DependentDirectoryReportError(
-                "La configuración de exclusiones debe contener listas de rutas."
+                "La configuración de exclusiones debe contener una lista de nombres."
             )
-        normalized = {
-            cls._canonical_relative_directory(value)
-            for value in values
-        }
+        normalized = set()
+        for value in values:
+            if not isinstance(value, str):
+                raise DependentDirectoryReportError(
+                    "Cada nombre de carpeta excluida debe ser texto."
+                )
+            key = cls._directory_category_key(value)
+            if not key or "/" in key or "\\" in key:
+                raise DependentDirectoryReportError(
+                    f"Nombre de carpeta no válido en las exclusiones: {value}"
+                )
+            normalized.add(key)
         return sorted(normalized)
 
+    @classmethod
+    def _normalise_legacy_path_list(cls, values: Any) -> list[str]:
+        """Migrate schema-v1 year-relative paths to global folder categories."""
+        if not isinstance(values, list):
+            raise DependentDirectoryReportError(
+                "La configuración anterior de exclusiones no contiene una lista."
+            )
+        names = set()
+        for raw_path in values:
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                raise DependentDirectoryReportError(
+                    "La configuración anterior contiene una ruta vacía."
+                )
+            parts = [
+                part for part in raw_path.strip().replace("\\", "/").split("/")
+                if part
+            ]
+            if (
+                len(parts) < 2
+                or not _YEAR_DIRECTORY_PATTERN.fullmatch(parts[0])
+                or any(part in {".", ".."} for part in parts)
+            ):
+                raise DependentDirectoryReportError(
+                    f"Ruta de exclusión anterior no válida: {raw_path}"
+                )
+            key = cls._directory_category_key(parts[-1])
+            if key:
+                names.add(key)
+        return sorted(names)
+
     def load_exclusion_preferences(self) -> dict[str, Any]:
-        """Load shared report exclusions, using the privacy folder as a default."""
+        """Load global folder-category exclusions, preserving older preferences."""
         defaults = {
-            "schema_version": 1,
-            "excluded_directories": [],
-            "included_directories": [],
+            "schema_version": 2,
+            "excluded_directory_names": [],
+            "included_directory_names": [],
             "default_excluded_directory_names": list(
                 DEFAULT_EXCLUDED_DIRECTORY_NAMES
             ),
@@ -152,28 +187,54 @@ class DependentDirectoryReportService:
                 f"No se pudo leer la configuración de exclusiones: {error}"
             ) from error
 
-        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        if not isinstance(payload, dict):
             raise DependentDirectoryReportError(
-                "La configuración de exclusiones tiene una versión o estructura no compatible."
+                "La configuración de exclusiones no tiene una estructura compatible."
             )
 
-        excluded = self._normalise_exclusion_list(
-            payload.get("excluded_directories", [])
-        )
-        included = self._normalise_exclusion_list(
-            payload.get("included_directories", [])
-        )
-        overlap = set(excluded) & set(included)
+        version = payload.get("schema_version")
+        if version == 1:
+            # Old settings were scoped to a year. Migrate each selected folder
+            # to its semantic category so the same choice applies across years.
+            excluded = set(
+                self._normalise_legacy_path_list(
+                    payload.get("excluded_directories", [])
+                )
+            )
+            included = set(
+                self._normalise_legacy_path_list(
+                    payload.get("included_directories", [])
+                )
+            )
+            # An explicit old inclusion is the clearest user override.
+            excluded.difference_update(included)
+        elif version == 2:
+            excluded = set(
+                self._normalise_directory_name_list(
+                    payload.get("excluded_directory_names", [])
+                )
+            )
+            included = set(
+                self._normalise_directory_name_list(
+                    payload.get("included_directory_names", [])
+                )
+            )
+        else:
+            raise DependentDirectoryReportError(
+                "La configuración de exclusiones tiene una versión no compatible."
+            )
+
+        overlap = excluded & included
         if overlap:
             raise DependentDirectoryReportError(
-                "Una carpeta no puede estar excluida e incluida al mismo tiempo: "
+                "Una categoría no puede estar excluida e incluida al mismo tiempo: "
                 + ", ".join(sorted(overlap))
             )
 
         return {
-            "schema_version": 1,
-            "excluded_directories": excluded,
-            "included_directories": included,
+            "schema_version": 2,
+            "excluded_directory_names": sorted(excluded),
+            "included_directory_names": sorted(included),
             "default_excluded_directory_names": list(
                 DEFAULT_EXCLUDED_DIRECTORY_NAMES
             ),
@@ -181,26 +242,30 @@ class DependentDirectoryReportService:
 
     def save_exclusion_preferences(
         self,
-        excluded_directories: list[str],
-        included_directories: list[str] | None = None,
+        excluded_directory_names: list[str],
+        included_directory_names: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Persist the user's per-year folder exclusions in the Structure checkout."""
-        excluded = self._normalise_exclusion_list(excluded_directories)
-        included = self._normalise_exclusion_list(included_directories or [])
-        overlap = set(excluded) & set(included)
+        """Persist global exclusions by semantic folder name."""
+        excluded = set(
+            self._normalise_directory_name_list(excluded_directory_names)
+        )
+        included = set(
+            self._normalise_directory_name_list(included_directory_names or [])
+        )
+        overlap = excluded & included
         if overlap:
             raise DependentDirectoryReportError(
-                "Una carpeta no puede estar excluida e incluida al mismo tiempo: "
+                "Una categoría no puede estar excluida e incluida al mismo tiempo: "
                 + ", ".join(sorted(overlap))
             )
 
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "updated_at": datetime.now().astimezone().isoformat(
                 timespec="seconds"
             ),
-            "excluded_directories": excluded,
-            "included_directories": included,
+            "excluded_directory_names": sorted(excluded),
+            "included_directory_names": sorted(included),
             "default_excluded_directory_names": list(
                 DEFAULT_EXCLUDED_DIRECTORY_NAMES
             ),
@@ -210,15 +275,11 @@ class DependentDirectoryReportService:
 
     @classmethod
     def is_default_excluded_directory_name(cls, folder_name: str) -> bool:
-        """Match default exclusions with or without a numeric folder prefix."""
-        normalized = str(folder_name or "").strip().casefold()
-        for default_name in DEFAULT_EXCLUDED_DIRECTORY_NAMES:
-            if normalized == default_name.casefold():
-                return True
-            prefix, separator, suffix = normalized.partition(". ")
-            if separator and prefix.isdigit() and suffix == default_name.casefold():
-                return True
-        return False
+        """Match default exclusions independent of their numeric prefix."""
+        return cls._directory_category_key(folder_name) in {
+            cls._directory_category_key(name)
+            for name in DEFAULT_EXCLUDED_DIRECTORY_NAMES
+        }
 
     @classmethod
     def _is_excluded(
@@ -227,18 +288,19 @@ class DependentDirectoryReportService:
         folder_name: str,
         preferences: dict[str, Any],
     ) -> bool:
-        key = cls._canonical_relative_directory(relative_path)
-        if key in set(preferences.get("included_directories", [])):
+        del relative_path  # Exclusions are categories, not year-specific paths.
+        key = cls._directory_category_key(folder_name)
+        if key in set(preferences.get("included_directory_names", [])):
             return False
-        if key in set(preferences.get("excluded_directories", [])):
+        if key in set(preferences.get("excluded_directory_names", [])):
             return True
         return cls.is_default_excluded_directory_name(folder_name)
 
-    def list_year_directory_options(
+    def list_directory_category_options(
         self,
         preferences: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """List each year and its immediate folders for the exclusion tree."""
+    ) -> dict[str, Any]:
+        """Return one exclusion option per semantic folder category across all years."""
         root = self.base_path.resolve()
         if not root.exists() or not root.is_dir():
             raise DependentDirectoryReportError(
@@ -250,32 +312,91 @@ class DependentDirectoryReportService:
             if preferences is not None
             else self.load_exclusion_preferences()
         )
-        years: list[dict[str, Any]] = []
+        year_data: list[dict[str, Any]] = []
+        all_labels: dict[str, str] = {}
         for year_entry in self._directory_entries(root):
             if not _YEAR_DIRECTORY_PATTERN.fullmatch(year_entry.name):
                 continue
 
-            folders = []
-            for folder_entry in self._directory_entries(Path(year_entry.path)):
-                relative_path = f"{year_entry.name}/{folder_entry.name}"
-                folders.append(
-                    {
-                        "name": folder_entry.name,
-                        "relative_path": relative_path,
-                        "excluded": self._is_excluded(
-                            relative_path,
-                            folder_entry.name,
-                            current_preferences,
-                        ),
-                    }
-                )
-            years.append(
+            folder_entries = self._directory_entries(Path(year_entry.path))
+            category_counts: Counter[str] = Counter()
+            folder_names: dict[str, list[str]] = {}
+            for folder_entry in folder_entries:
+                key = self._directory_category_key(folder_entry.name)
+                category_counts[key] += 1
+                folder_names.setdefault(key, []).append(folder_entry.name)
+                label = self._directory_category_label(folder_entry.name)
+                if key not in all_labels or label.startswith("xx. "):
+                    all_labels[key] = label
+
+            year_data.append(
                 {
                     "year": year_entry.name,
-                    "folders": folders,
+                    "folder_count": len(folder_entries),
+                    "category_counts": category_counts,
+                    "folder_names": folder_names,
                 }
             )
-        return years
+
+        year_data.sort(key=lambda item: item["year"])
+        reference_counts = (
+            year_data[0]["category_counts"] if year_data else Counter()
+        )
+        mismatches: list[dict[str, Any]] = []
+        for item in year_data[1:]:
+            actual_counts = item["category_counts"]
+            missing_keys = list((reference_counts - actual_counts).elements())
+            extra_keys = list((actual_counts - reference_counts).elements())
+            if missing_keys or extra_keys:
+                mismatches.append(
+                    {
+                        "year": item["year"],
+                        "expected_folder_count": sum(reference_counts.values()),
+                        "actual_folder_count": item["folder_count"],
+                        "missing": [
+                            all_labels.get(key, key)
+                            for key in sorted(set(missing_keys))
+                        ],
+                        "extra": [
+                            all_labels.get(key, key)
+                            for key in sorted(set(extra_keys))
+                        ],
+                    }
+                )
+
+        all_keys = sorted(all_labels)
+        options = []
+        for key in all_keys:
+            occurrences = sum(
+                item["category_counts"].get(key, 0)
+                for item in year_data
+            )
+            years_present = sum(
+                item["category_counts"].get(key, 0) > 0
+                for item in year_data
+            )
+            options.append(
+                {
+                    "key": key,
+                    "name": all_labels[key],
+                    "excluded": self._is_excluded(
+                        "",
+                        key,
+                        current_preferences,
+                    ),
+                    "years_present": years_present,
+                    "directory_count": occurrences,
+                }
+            )
+
+        return {
+            "years": [item["year"] for item in year_data],
+            "year_count": len(year_data),
+            "categories": options,
+            "structure_consistent": not mismatches,
+            "reference_folder_count": sum(reference_counts.values()),
+            "mismatches": mismatches,
+        }
 
     @staticmethod
     def _parse_character_folder(
@@ -423,6 +544,25 @@ class DependentDirectoryReportService:
             )
 
         preferences = self.load_exclusion_preferences()
+        structure_options = self.list_directory_category_options(preferences)
+        if not structure_options["structure_consistent"]:
+            details = []
+            for mismatch in structure_options["mismatches"]:
+                message = (
+                    f"{mismatch['year']}: {mismatch['actual_folder_count']} carpetas "
+                    f"(se esperaban {mismatch['expected_folder_count']})"
+                )
+                if mismatch["missing"]:
+                    message += "; faltan: " + ", ".join(mismatch["missing"])
+                if mismatch["extra"]:
+                    message += "; sobran: " + ", ".join(mismatch["extra"])
+                details.append(message)
+            raise DependentDirectoryReportError(
+                "La estructura de carpetas de los años no es uniforme. "
+                "Cada año debe tener las mismas categorías y cantidad de carpetas.\n"
+                + "\n".join(details)
+            )
+
         year_entries = [
             entry
             for entry in self._directory_entries(root)
@@ -602,7 +742,7 @@ class DependentDirectoryReportService:
         )
 
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "generated_at": datetime.now().astimezone().isoformat(
                 timespec="seconds"
             ),
@@ -617,6 +757,9 @@ class DependentDirectoryReportService:
                 excluded_directory_paths,
                 key=str.casefold,
             ),
+            "excluded_directory_names": sorted(
+                preferences.get("excluded_directory_names", [])
+            ),
             "character_count": len(character_credentials),
             "credential_file_count": credential_file_count,
             "credential_found_count": found_count,
@@ -626,6 +769,161 @@ class DependentDirectoryReportService:
             "directories": directories,
             "character_credentials": character_credentials,
         }
+
+    @staticmethod
+    def render_tree_text(report: dict[str, Any]) -> str:
+        """Render the inventory and credential references as a plain-text tree."""
+        root_node: dict[str, Any] = {
+            "name": Path(report["root_path"]).name or report["root_path"],
+            "kind": "directory",
+            "children": {},
+            "annotation": "",
+        }
+
+        def ensure_directory(parts: list[str]) -> dict[str, Any]:
+            node = root_node
+            for part in parts:
+                key = "dir:" + part.casefold()
+                child = node["children"].get(key)
+                if child is None:
+                    child = {
+                        "name": part,
+                        "kind": "directory",
+                        "children": {},
+                        "annotation": "",
+                    }
+                    node["children"][key] = child
+                node = child
+            return node
+
+        for directory in report.get("directories", []):
+            parts = [
+                part for part in str(directory["relative_path"]).replace("\\", "/").split("/")
+                if part
+            ]
+            ensure_directory(parts)
+
+        status_annotations = {
+            "missing": " [credencial no encontrada]",
+            "ambiguous": " [credenciales ambiguas]",
+            "found_with_additional_candidates": (
+                " [credencial principal y archivos adicionales]"
+            ),
+        }
+        for character in report.get("character_credentials", []):
+            folder_parts = [
+                part for part in str(
+                    character.get("character_relative_path", "")
+                ).replace("\\", "/").split("/")
+                if part
+            ]
+            character_node = ensure_directory(folder_parts)
+            character_node["annotation"] = status_annotations.get(
+                character.get("credential_status"),
+                "",
+            )
+            for credential in character.get("credential_files", []):
+                file_parts = [
+                    part for part in str(
+                        credential.get("relative_path", "")
+                    ).replace("\\", "/").split("/")
+                    if part
+                ]
+                if not file_parts:
+                    continue
+                parent_node = ensure_directory(file_parts[:-1])
+                file_name = file_parts[-1]
+                file_key = "file:" + file_name.casefold()
+                parent_node["children"].setdefault(
+                    file_key,
+                    {
+                        "name": file_name,
+                        "kind": "file",
+                        "children": {},
+                        "annotation": "",
+                    },
+                )
+
+        tree_lines: list[str] = []
+
+        def append_children(node: dict[str, Any], prefix: str) -> None:
+            children = sorted(
+                node["children"].values(),
+                key=lambda item: (
+                    item["kind"] == "file",
+                    item["name"].casefold(),
+                ),
+            )
+            for index, child in enumerate(children):
+                is_last = index == len(children) - 1
+                connector = "└── " if is_last else "├── "
+                tree_lines.append(
+                    prefix + connector + child["name"] + child["annotation"]
+                )
+                if child["kind"] == "directory" and child["children"]:
+                    append_children(
+                        child,
+                        prefix + ("    " if is_last else "│   "),
+                    )
+
+        append_children(root_node, "")
+        excluded = report.get("excluded_directories", [])
+        lines = [
+            "REPORTE DE UNIDAD DEPENDIENTE",
+            f"Unidad: {report.get('root_path', '')}",
+            f"Generado: {report.get('generated_at', '')}",
+            f"Años: {report.get('year_count', 0)}",
+            f"Directorios registrados: {report.get('directory_count', 0)}",
+            f"Carpetas excluidas: {report.get('excluded_directory_count', 0)}",
+            f"Personajes: {report.get('character_count', 0)}",
+            f"Credenciales encontradas: {report.get('credential_found_count', 0)}",
+            f"Credenciales ausentes: {report.get('credential_missing_count', 0)}",
+            f"Credenciales ambiguas: {report.get('credential_ambiguous_count', 0)}",
+            "",
+            "EXCLUSIONES:",
+        ]
+        lines.extend(
+            f"  - {relative_path}" for relative_path in excluded
+        )
+        if not excluded:
+            lines.append("  - Ninguna")
+        lines.extend(["", "ÁRBOL DE DIRECTORIOS:"])
+        lines.extend(tree_lines or ["  (sin directorios)"])
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _atomic_text_write(path: Path, content: str) -> None:
+        if not path.parent.is_dir():
+            raise DependentDirectoryReportError(
+                "No existe el directorio del repositorio Structure:\n"
+                f"{path.parent}"
+            )
+
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n",
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                dir=path.parent,
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(content)
+
+            os.replace(temporary_path, path)
+        except OSError as error:
+            raise DependentDirectoryReportError(
+                f"No se pudo escribir el archivo:\n{path}\n\n{error}"
+            ) from error
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                try:
+                    temporary_path.unlink()
+                except OSError:
+                    pass
 
     @staticmethod
     def _atomic_json_write(path: Path, payload: dict[str, Any]) -> None:
@@ -670,12 +968,29 @@ class DependentDirectoryReportService:
     def generate_or_update(
         self,
         progress_callback: ProgressCallback | None = None,
+        report_format: str = "json",
     ) -> dict[str, Any]:
-        """Build the report and replace the previous report atomically."""
+        """Generate either the structured JSON report or its plain-text tree."""
+        selected_format = str(report_format or "json").strip().casefold()
+        if selected_format not in {"json", "txt"}:
+            raise DependentDirectoryReportError(
+                f"Formato de reporte no compatible: {report_format}"
+            )
+
         report = self.build_report(progress_callback=progress_callback)
-        self._atomic_json_write(self.report_path, report)
+        if selected_format == "json":
+            output_path = self.report_path
+            self._atomic_json_write(output_path, report)
+        else:
+            output_path = self.report_path.with_name(REPORT_TEXT_FILENAME)
+            self._atomic_text_write(
+                output_path,
+                self.render_tree_text(report),
+            )
+
         return {
-            "report_path": str(self.report_path),
+            "report_path": str(output_path),
+            "report_format": selected_format,
             "root_path": report["root_path"],
             "year_count": report["year_count"],
             "directory_count": report["directory_count"],

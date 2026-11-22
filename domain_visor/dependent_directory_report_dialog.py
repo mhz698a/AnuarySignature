@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -34,14 +35,16 @@ class _DependentDirectoryReportWorker(QThread):
     def __init__(
         self,
         base_path: Path,
-        excluded_directories: list[str],
-        included_directories: list[str],
+        excluded_directory_names: list[str],
+        included_directory_names: list[str],
+        report_format: str,
         parent=None,
     ):
         super().__init__(parent)
         self.base_path = Path(base_path)
-        self.excluded_directories = list(excluded_directories)
-        self.included_directories = list(included_directories)
+        self.excluded_directory_names = list(excluded_directory_names)
+        self.included_directory_names = list(included_directory_names)
+        self.report_format = report_format
 
     def _report_progress(self, completed: int, total: int, message: str):
         self.progress.emit(completed, total, message)
@@ -54,12 +57,13 @@ class _DependentDirectoryReportWorker(QThread):
                 get_structure_file(REPORT_SETTINGS_FILENAME),
             )
             preferences = service.save_exclusion_preferences(
-                self.excluded_directories,
-                self.included_directories,
+                self.excluded_directory_names,
+                self.included_directory_names,
             )
             self.preferences_saved.emit(preferences)
             result = service.generate_or_update(
                 progress_callback=self._report_progress,
+                report_format=self.report_format,
             )
             self.completed.emit(result)
         except Exception as error:
@@ -67,7 +71,7 @@ class _DependentDirectoryReportWorker(QThread):
 
 
 class DependentDirectoryReportDialog(QDialog):
-    """Choose year-level folders and generate the report on explicit request."""
+    """Choose global folder exclusions and generate JSON or a plain-text tree."""
 
     def __init__(self, base_path: str | Path, parent=None):
         super().__init__(parent)
@@ -77,8 +81,9 @@ class DependentDirectoryReportDialog(QDialog):
         self.report_generated = False
         self.preferences_saved = False
         self._preferences = {}
-        self._directory_options = []
+        self._directory_options = {}
         self._load_error = None
+        self.structure_is_consistent = False
 
         self.service = DependentDirectoryReportService(
             self.base_path,
@@ -87,16 +92,19 @@ class DependentDirectoryReportDialog(QDialog):
         )
         try:
             self._preferences = self.service.load_exclusion_preferences()
-            self._directory_options = self.service.list_year_directory_options(
+            self._directory_options = self.service.list_directory_category_options(
                 self._preferences
+            )
+            self.structure_is_consistent = bool(
+                self._directory_options.get("structure_consistent", False)
             )
         except Exception as error:
             self._load_error = str(error)
 
         self.setWindowTitle("Reporte de unidad dependiente")
         self.setModal(True)
-        self.setMinimumSize(760, 680)
-        self.resize(820, 760)
+        self.setMinimumSize(760, 640)
+        self.resize(820, 720)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
         )
@@ -110,14 +118,14 @@ class DependentDirectoryReportDialog(QDialog):
             QLabel {{
                 color: {Theme.TEXT_WHITE};
             }}
-            QPushButton {{
+            QPushButton, QComboBox {{
                 background-color: #2d2d2d;
                 border: 1px solid #555555;
                 border-radius: 4px;
                 padding: 7px 12px;
                 color: {Theme.TEXT_WHITE};
             }}
-            QPushButton:hover {{
+            QPushButton:hover, QComboBox:hover {{
                 background-color: #3e3e42;
                 border-color: #85c1e9;
             }}
@@ -152,7 +160,7 @@ class DependentDirectoryReportDialog(QDialog):
         """)
 
         self._build_ui()
-        self._populate_directory_tree()
+        self._populate_directory_categories()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -165,29 +173,36 @@ class DependentDirectoryReportDialog(QDialog):
 
         scope = QLabel(
             f"Unidad dependiente:\n{self.base_path}\n\n"
-            "Cada año muestra sus carpetas directas. Marca la columna "
-            "'Excluir del reporte' para omitir una carpeta y todo su contenido. "
-            "resources.local.personal está excluida inicialmente en todos los años. "
-            "Las credenciales localizadas dentro de carpetas excluidas tampoco "
-            "aparecerán en el reporte. El contenido de los JSON no se lee ni se copia."
+            "La lista muestra cada tipo de carpeta una sola vez. El prefijo "
+            "numérico se normaliza como 'xx.' y las exclusiones se aplican a "
+            "todos los años. Las carpetas excluidas y todo su contenido se "
+            "omiten. Los JSON de credenciales no se leen ni se copian."
         )
         scope.setWordWrap(True)
         layout.addWidget(scope)
 
+        format_row = QHBoxLayout()
+        format_row.addWidget(QLabel("Formato del reporte:"))
+        self.format_combo = QComboBox(self)
+        self.format_combo.addItem("JSON — datos estructurados", "json")
+        self.format_combo.addItem("TXT — árbol de directorios", "txt")
+        format_row.addWidget(self.format_combo, 1)
+        layout.addLayout(format_row)
+
         self.directory_tree = QTreeWidget(self)
         self.directory_tree.setColumnCount(2)
         self.directory_tree.setHeaderLabels(
-            ["Año / carpeta", "Excluir del reporte"]
+            ["Tipo de carpeta", "Excluir en todos los años"]
         )
-        self.directory_tree.setColumnWidth(0, 500)
-        self.directory_tree.setColumnWidth(1, 170)
+        self.directory_tree.setColumnWidth(0, 460)
+        self.directory_tree.setColumnWidth(1, 220)
         self.directory_tree.setUniformRowHeights(True)
         self.directory_tree.setAlternatingRowColors(True)
         layout.addWidget(self.directory_tree, 1)
 
         self.status_label = QLabel()
         self.status_label.setWordWrap(True)
-        self.status_label.setMinimumHeight(54)
+        self.status_label.setMinimumHeight(66)
         self.status_label.setStyleSheet(
             "background-color: #252525; border: 1px solid #444444; "
             "border-radius: 4px; padding: 10px;"
@@ -203,6 +218,10 @@ class DependentDirectoryReportDialog(QDialog):
         footer = QHBoxLayout()
         footer.addStretch()
 
+        self.save_preferences_button = QPushButton("Guardar exclusiones")
+        self.save_preferences_button.clicked.connect(self._save_preferences)
+        footer.addWidget(self.save_preferences_button)
+
         self.generate_button = QPushButton("Generar reporte")
         self.generate_button.clicked.connect(self._start_worker)
         footer.addWidget(self.generate_button)
@@ -212,103 +231,143 @@ class DependentDirectoryReportDialog(QDialog):
         footer.addWidget(self.close_button)
         layout.addLayout(footer)
 
-    def _populate_directory_tree(self):
+    def _structure_problem_text(self) -> str:
+        mismatches = self._directory_options.get("mismatches", [])
+        lines = [
+            "La estructura no es uniforme entre los años. Para generar el "
+            "reporte, cada año debe contener las mismas carpetas."
+        ]
+        for item in mismatches:
+            details = [
+                f"{item.get('year', '')}: "
+                f"{item.get('actual_folder_count', 0)} carpetas "
+                f"(se esperaban {item.get('expected_folder_count', 0)})"
+            ]
+            if item.get("missing"):
+                details.append("faltan: " + ", ".join(item["missing"]))
+            if item.get("extra"):
+                details.append("sobran: " + ", ".join(item["extra"]))
+            lines.append(" • ".join(details))
+        return "\n".join(lines)
+
+    def _populate_directory_categories(self):
         self.directory_tree.clear()
 
         if self._load_error is not None:
             self.status_label.setText(
-                "No se pudo leer la estructura de años y carpetas. "
-                "No se iniciará la generación del reporte.\n\n"
+                "No se pudo leer la estructura de años y carpetas.\n\n"
                 + self._load_error
             )
             self.generate_button.setEnabled(False)
+            self.save_preferences_button.setEnabled(False)
             return
 
-        folder_count = 0
-        for year_data in self._directory_options:
-            folders = year_data.get("folders", [])
-            year_item = QTreeWidgetItem(
-                [str(year_data.get("year", "")), f"{len(folders)} carpetas"]
+        categories = self._directory_options.get("categories", [])
+        for category in categories:
+            item = QTreeWidgetItem(
+                [str(category.get("name", "")), "Excluir"]
             )
-            year_item.setFlags(
-                year_item.flags() & ~Qt.ItemFlag.ItemIsSelectable
+            item.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                str(category.get("key", "")),
             )
-            self.directory_tree.addTopLevelItem(year_item)
-            year_item.setExpanded(True)
+            item.setFlags(
+                item.flags()
+                | Qt.ItemFlag.ItemIsUserCheckable
+                | Qt.ItemFlag.ItemIsEnabled
+            )
+            item.setCheckState(
+                1,
+                (
+                    Qt.CheckState.Checked
+                    if category.get("excluded")
+                    else Qt.CheckState.Unchecked
+                ),
+            )
+            years_present = int(category.get("years_present", 0))
+            total_years = int(self._directory_options.get("year_count", 0))
+            item.setToolTip(
+                0,
+                f"Presente en {years_present} de {total_years} años; "
+                f"{category.get('directory_count', 0)} carpetas detectadas.",
+            )
+            self.directory_tree.addTopLevelItem(item)
 
-            for folder_data in folders:
-                folder_name = str(folder_data.get("name", ""))
-                relative_path = str(folder_data.get("relative_path", ""))
-                folder_item = QTreeWidgetItem(
-                    [folder_name, "Excluir"]
-                )
-                folder_item.setData(
-                    0,
-                    Qt.ItemDataRole.UserRole,
-                    relative_path,
-                )
-                folder_item.setFlags(
-                    folder_item.flags()
-                    | Qt.ItemFlag.ItemIsUserCheckable
-                    | Qt.ItemFlag.ItemIsEnabled
-                )
-                folder_item.setCheckState(
-                    1,
-                    (
-                        Qt.CheckState.Checked
-                        if folder_data.get("excluded")
-                        else Qt.CheckState.Unchecked
-                    ),
-                )
-                folder_item.setToolTip(0, relative_path)
-                year_item.addChild(folder_item)
-                folder_count += 1
-
-        self.status_label.setText(
-            f"Años detectados: {len(self._directory_options)}. "
-            f"Carpetas configurables: {folder_count}.\n"
-            "Selecciona las carpetas que deben excluirse. El reporte no se "
-            "genera al abrir esta ventana; se generará al pulsar 'Generar reporte'."
+        year_count = int(self._directory_options.get("year_count", 0))
+        reference_count = int(
+            self._directory_options.get("reference_folder_count", 0)
         )
-        self.generate_button.setEnabled(True)
+        if self.structure_is_consistent:
+            self.status_label.setText(
+                f"Años detectados: {year_count}. "
+                f"Carpetas por año: {reference_count}. "
+                f"Tipos de carpeta: {len(categories)}.\n"
+                "Cada selección se aplica de manera global a todos los años. "
+                "La generación no comienza al abrir esta ventana."
+            )
+        else:
+            self.status_label.setText(
+                self._structure_problem_text()
+                + "\n\nPuedes guardar las exclusiones, pero la generación "
+                "permanecerá deshabilitada hasta corregir la estructura."
+            )
+        self.generate_button.setEnabled(self.structure_is_consistent)
+        self.save_preferences_button.setEnabled(True)
 
     def _collect_exclusion_preferences(self) -> tuple[list[str], list[str]]:
-        excluded = set(self._preferences.get("excluded_directories", []))
-        included = set(self._preferences.get("included_directories", []))
-        for year_index in range(self.directory_tree.topLevelItemCount()):
-            year_item = self.directory_tree.topLevelItem(year_index)
-            for folder_index in range(year_item.childCount()):
-                folder_item = year_item.child(folder_index)
-                relative_path = str(
-                    folder_item.data(0, Qt.ItemDataRole.UserRole) or ""
-                )
-                if not relative_path:
-                    continue
+        excluded = set(
+            self._preferences.get("excluded_directory_names", [])
+        )
+        included = set(
+            self._preferences.get("included_directory_names", [])
+        )
+        for index in range(self.directory_tree.topLevelItemCount()):
+            item = self.directory_tree.topLevelItem(index)
+            key = str(item.data(0, Qt.ItemDataRole.UserRole) or "")
+            if not key:
+                continue
 
-                key = relative_path.replace("\\", "/").casefold()
-                folder_name = folder_item.text(0).casefold()
-                excluded.discard(key)
-                included.discard(key)
+            excluded.discard(key)
+            included.discard(key)
+            if item.checkState(1) == Qt.CheckState.Checked:
+                excluded.add(key)
+            elif self.service.is_default_excluded_directory_name(key):
+                included.add(key)
 
-                if folder_item.checkState(1) == Qt.CheckState.Checked:
-                    excluded.add(key)
-                elif self.service.is_default_excluded_directory_name(folder_name):
-                    # Explicitly allow this one year-level folder despite the default.
-                    included.add(key)
-
-        # Keep preferences for directories that are temporarily absent from the drive.
         return sorted(excluded), sorted(included)
+
+    def _save_preferences(self):
+        if self.worker is not None and self.worker.isRunning():
+            return
+        try:
+            excluded, included = self._collect_exclusion_preferences()
+            self._preferences = self.service.save_exclusion_preferences(
+                excluded,
+                included,
+            )
+            self.preferences_saved = True
+            self.status_label.setText(
+                "Las exclusiones globales se guardaron correctamente en Structure."
+            )
+        except Exception as error:
+            self.status_label.setText(
+                f"No se pudieron guardar las exclusiones:\n{error}"
+            )
 
     def _start_worker(self):
         if self.worker is not None and self.worker.isRunning():
             return
-        if self._load_error is not None:
+        if self._load_error is not None or not self.structure_is_consistent:
             return
 
         excluded, included = self._collect_exclusion_preferences()
+        report_format = str(self.format_combo.currentData() or "json")
         self.generate_button.setEnabled(False)
+        self.save_preferences_button.setEnabled(False)
         self.close_button.setEnabled(False)
         self.directory_tree.setEnabled(False)
+        self.format_combo.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.status_label.setText(
@@ -319,6 +378,7 @@ class DependentDirectoryReportDialog(QDialog):
             self.base_path,
             excluded,
             included,
+            report_format,
             self,
         )
         worker.progress.connect(self._on_progress)
@@ -351,7 +411,8 @@ class DependentDirectoryReportDialog(QDialog):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
         self.status_label.setText(
-            "Reporte generado/actualizado correctamente.\n\n"
+            "Reporte generado correctamente.\n\n"
+            f"Formato: {result.get('report_format', '').upper()}\n"
             f"Años incluidos: {result.get('year_count', 0)}\n"
             f"Directorios registrados: {result.get('directory_count', 0)}\n"
             f"Carpetas excluidas: {result.get('excluded_directory_count', 0)}\n"
@@ -362,22 +423,24 @@ class DependentDirectoryReportDialog(QDialog):
             f"Con archivos adicionales: "
             f"{result.get('credential_additional_candidates_count', 0)}\n"
             f"Archivos de credencial detectados: {result.get('credential_file_count', 0)}\n"
-            "Profundidad máxima después del año: "
-            f"{result.get('max_subfolder_levels_after_year', 2)} niveles\n\n"
             f"Archivo: {result.get('report_path', '')}"
         )
         self.directory_tree.setEnabled(True)
-        self.generate_button.setEnabled(True)
+        self.format_combo.setEnabled(True)
+        self.save_preferences_button.setEnabled(True)
+        self.generate_button.setEnabled(self.structure_is_consistent)
         self.close_button.setEnabled(True)
 
     def _on_failed(self, message: str):
         self.status_label.setText(
-            "No se pudo generar el reporte. El reporte anterior, si existía, "
-            "se conserva. Las preferencias de exclusión se guardaron si la "
-            f"configuración pudo escribirse.\n\n{message}"
+            "No se pudo generar el reporte. El archivo anterior, si existía, "
+            "se conserva. Las exclusiones se guardaron si la configuración "
+            f"pudo escribirse.\n\n{message}"
         )
         self.directory_tree.setEnabled(True)
-        self.generate_button.setEnabled(True)
+        self.format_combo.setEnabled(True)
+        self.save_preferences_button.setEnabled(True)
+        self.generate_button.setEnabled(self.structure_is_consistent)
         self.close_button.setEnabled(True)
 
     def _on_worker_finished(self):

@@ -65,41 +65,53 @@ Git operations run without opening visible Windows console windows. The
 ## Dependent-drive directory report
 
 AnuarySignature can generate an inventory of the configured dependent drive,
-including directory structure and references to character credential files.
-The report is stored in the private Structure checkout at:
+including the directory tree and references to character credential files.
+The report can be generated in either of two independent formats in the
+report dialog:
 
-```text
-__structure__/dependent_directory_report.json
-```
+- JSON: \`__structure__/dependent_directory_report.json\`, for structured data.
+- TXT: \`__structure__/dependent_directory_report.txt\`, as a plain-text
+  directory tree with branches, subfolders and the discovered credential
+  filenames.
 
-The directory inventory includes four-digit year directories and at most two
-directory levels below each year. For example, it records `2009`,
-`2009\06. music`, and `2009\06. music\06. s.rt.example`.
-The report also scans each year's album folder identified by the year prefix and
-recognizes character folders using AnuarySignature's existing naming convention.
-It records character identity, relative folder paths, credential filenames and
-relative credential paths. Missing credentials are marked as missing; multiple
-`__*.json` candidates are marked as ambiguous unless the standard
-`__CharacterName__.json` filename identifies the main credential.
+The inventory includes four-digit year directories and at most two directory
+levels below each year. It also scans the album directory identified by the
+year prefix and recognizes character folders using AnuarySignature's existing
+naming convention. The tree report lists credential filenames under their
+character folders and indicates missing or ambiguous credentials. Credential
+JSON contents and image files are never opened, copied or embedded.
 
-When opening the report dialog, AnuarySignature lists each year and its direct
-child folders. The user can mark individual folders to exclude their entire
-subtree. `resources.local.personal` is excluded by default in every year, both
-with its exact name and when preceded by a numeric prefix. This default can be
-overridden for a particular year. Exclusion preferences are stored in
-`__structure__/dependent_directory_report_settings.json`.
+The exclusion list is built dynamically from the actual dependent-drive
+structure. A numbered folder such as \`22. resources.local.personal\` is
+normalized to one category, displayed as \`xx. resources.local.personal\`.
+Each category appears only once, regardless of how many years contain it.
+Checking a category excludes that folder and its entire subtree in every year.
+\`resources.local.personal\` is excluded globally by default; unchecking it
+explicitly includes it in every year.
 
-Opening the dialog does not generate the report. The scan starts only after
-pressing **Generar reporte**. During generation, the dialog displays the current
-year and folder being processed with a progress bar. The report is replaced only
-after the scan completes; a failed scan preserves the previous report.
+Every four-digit year must contain the same number and semantic set of
+first-level folders. Numeric prefixes may differ by year, but the text after
+the number and separator must match. If a year is missing a category or has
+an extra one, the dialog identifies the mismatch and disables report
+generation until the directory structure is corrected.
 
-Credential JSON contents and image files are never opened, copied or embedded
-in this report. Only regular credential filenames and relative paths are
-recorded. Symbolic links and Windows reparse-point files/directories are skipped.
+Global exclusion preferences are stored in
+\`__structure__/dependent_directory_report_settings.json\`. Existing version-1
+preferences are migrated from year-specific paths to global folder categories
+when loaded.
+
+Opening the dialog does not generate a report. Select JSON or TXT and press
+**Generar reporte** to start the scan. The progress display identifies the
+year and folder currently being processed. The selected output is replaced
+atomically only after the scan completes; a failed scan preserves its previous
+file. The application may also refresh the report through its existing
+background refresh hooks after relevant directory or character-credential
+changes.
+
 The report and its exclusion preferences are local changes in the private
 Structure repository. Use the usual
-**Ajustes → Sincronizar Structure con GitHub → Subir cambios** action to publish them.
+**Ajustes → Sincronizar Structure con GitHub → Subir cambios** action to
+publish them.
 
 ## Phase 6 — Structure status and character colours
 
