@@ -396,6 +396,12 @@ class VasculumApp(QMainWindow):
         self.structure_sync_action.triggered.connect(
             lambda *_: self.open_structure_sync_dialog()
         )
+        self.year_structure_editor_action = settings_menu.addAction(
+            "Editar plantilla y Estructura de años"
+        )
+        self.year_structure_editor_action.triggered.connect(
+            lambda *_: self.open_year_structure_editor()
+        )
         settings_menu.addSeparator()
 
         self.dependent_path_action = settings_menu.addAction(
@@ -484,6 +490,55 @@ class VasculumApp(QMainWindow):
         except Exception:
             pass
         # El visor permanece oculto; el usuario puede mostrarlo desde la bandeja.
+
+    def open_year_structure_editor(self):
+        """Open the folders.json editor only after background Git status work is idle."""
+        self.structure_status_monitor.pause()
+        if self.structure_status_monitor.is_busy():
+            if not getattr(self, "_year_structure_editor_waiting", False):
+                self._year_structure_editor_waiting = True
+                self.structure_status_monitor.idle.connect(
+                    self._open_year_structure_editor_when_idle
+                )
+            self.show_status_message(
+                "Esperando a que termine la comprobación de Structure…", 3000
+            )
+            return
+        self._open_year_structure_editor_when_idle()
+
+    def _open_year_structure_editor_when_idle(self):
+        """Edit the shared year template without competing with Structure Git polling."""
+        if getattr(self, "_year_structure_editor_waiting", False):
+            try:
+                self.structure_status_monitor.idle.disconnect(
+                    self._open_year_structure_editor_when_idle
+                )
+            except (TypeError, RuntimeError):
+                pass
+            self._year_structure_editor_waiting = False
+
+        try:
+            from domain_visor.year_structure_editor_dialog import (
+                YearStructureEditorDialog,
+            )
+
+            dialog = YearStructureEditorDialog(self.dependent_path, self)
+            dialog.exec()
+            if dialog.applied:
+                self.show_status_message(
+                    "Plantilla folders.json guardada y estructura de años actualizada. "
+                    "Revisa PUSH para publicar los cambios.",
+                    7000,
+                )
+                self.refresh_data()
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Editar plantilla y Estructura de años",
+                f"No se pudo abrir o actualizar la plantilla:\n{error}",
+            )
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
 
     def configure_dependent_path(self):
         """Permite seleccionar y guardar la carpeta raíz de los datos dependientes."""

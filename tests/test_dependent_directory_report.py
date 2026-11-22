@@ -482,6 +482,8 @@ def test_directory_structure_mismatch_blocks_report_and_preserves_old_file(tmp_p
     options = service.list_directory_category_options()
     assert options["structure_consistent"] is False
     assert options["mismatches"][0]["year"] == "2025"
+    assert options["mismatches"][0]["missing"] == ["music"]
+    assert options["mismatches"][0]["extra"] == ["identity"]
 
     with pytest.raises(DependentDirectoryReportError, match="no coincide con la plantilla"):
         service.generate_or_update()

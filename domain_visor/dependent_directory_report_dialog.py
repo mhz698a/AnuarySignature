@@ -182,6 +182,22 @@ class DependentDirectoryReportDialog(QDialog):
         scope.setWordWrap(True)
         layout.addWidget(scope)
 
+        self.mismatch_tree = QTreeWidget(self)
+        self.mismatch_tree.setColumnCount(4)
+        self.mismatch_tree.setHeaderLabels(
+            ["Año", "Carpetas", "Faltan", "Sobran"]
+        )
+        self.mismatch_tree.setColumnWidth(0, 72)
+        self.mismatch_tree.setColumnWidth(1, 82)
+        self.mismatch_tree.setColumnWidth(2, 285)
+        self.mismatch_tree.setColumnWidth(3, 285)
+        self.mismatch_tree.setAlternatingRowColors(True)
+        self.mismatch_tree.setUniformRowHeights(True)
+        self.mismatch_tree.setMinimumHeight(96)
+        self.mismatch_tree.setMaximumHeight(176)
+        self.mismatch_tree.setVisible(False)
+        layout.addWidget(self.mismatch_tree)
+
         format_row = QHBoxLayout()
         format_row.addWidget(QLabel("Formato del reporte:"))
         self.format_combo = QComboBox(self)
@@ -272,6 +288,25 @@ class DependentDirectoryReportDialog(QDialog):
             self.generate_button.setEnabled(False)
             self.save_preferences_button.setEnabled(False)
             return
+
+        self.mismatch_tree.clear()
+        mismatches = self._directory_options.get("mismatches", [])
+        for mismatch in mismatches:
+            missing = ", ".join(str(name) for name in mismatch.get("missing", [])) or "—"
+            extra = ", ".join(str(name) for name in mismatch.get("extra", [])) or "—"
+            item = QTreeWidgetItem(
+                [
+                    str(mismatch.get("year", "")),
+                    f"{mismatch.get('actual_folder_count', 0)} / "
+                    f"{mismatch.get('expected_folder_count', 0)}",
+                    missing,
+                    extra,
+                ]
+            )
+            item.setToolTip(2, missing)
+            item.setToolTip(3, extra)
+            self.mismatch_tree.addTopLevelItem(item)
+        self.mismatch_tree.setVisible(bool(mismatches))
 
         categories = self._directory_options.get("categories", [])
         for category in categories:
