@@ -176,7 +176,7 @@ class DependentDirectoryReportDialog(QDialog):
         scope = QLabel(
             f"Unidad dependiente: {self.base_path}\n"
             "La lista muestra cada categoría una sola vez, sin el prefijo. "
-            "El prefijo real de cada año se calcula como max(0, año - 2003). "
+            "El prefijo real se calcula como max(0, año - 2003) y se rellena a dos dígitos. "
             "Las exclusiones se aplican globalmente y omiten toda la subcarpeta."
         )
         scope.setWordWrap(True)
@@ -327,7 +327,7 @@ class DependentDirectoryReportDialog(QDialog):
             details = (
                 f"Unidad: {self.base_path}\n"
                 f"Fuente de estructura: {source_label}\n"
-                "El prefijo de cada año se calcula como max(0, año - 2003). "
+                "El prefijo de cada año se calcula como max(0, año - 2003), con dos dígitos. "
                 "Las categorías se muestran sin ese prefijo y las exclusiones "
                 "se aplican globalmente."
             )
