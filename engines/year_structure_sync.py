@@ -229,10 +229,6 @@ class YearStructureSyncService:
         added_subfolders: list[dict[str, str]] = []
         removed_subfolders: list[dict[str, str]] = []
 
-        current_keys = {
-            normalize_directory_category(name): name
-            for name in current
-        }
         discovered_names = {
             key: value["name"] for key, value in discovered.items()
         }
@@ -284,17 +280,6 @@ class YearStructureSyncService:
             for name in current
             if normalize_directory_category(name) not in discovered
         ]
-        current_keys = {
-            normalize_directory_category(name) for name in current
-        }
-        for category_key, category in discovered.items():
-            if category_key in current_keys:
-                continue
-            for child_name in category["subfolders"].values():
-                added_subfolders.append(
-                    {"category": category["name"], "name": child_name}
-                )
-
         return {
             "years": [item.name for item in years],
             "year_count": len(years),
