@@ -304,7 +304,14 @@ class DependentDirectoryReportDialog(QDialog):
             self.status_label.setText(
                 f"Años detectados: {year_count}. "
                 f"Carpetas por año: {reference_count}. "
-                f"Tipos de carpeta: {len(categories)}.\n"
+                f"Tipos de carpeta: {len(categories)}.\\n"
+                f"Fuente de estructura: {self._directory_options.get('structure_source', 'desconocida')}"
+                + (
+                    f" (año plantilla {self._directory_options['template_year']})"
+                    if self._directory_options.get("template_year")
+                    else ""
+                )
+                + ".\\n"
                 "Cada selección se aplica de manera global a todos los años. "
                 "La generación no comienza al abrir esta ventana."
             )
