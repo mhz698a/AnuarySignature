@@ -235,9 +235,13 @@ class DependentDirectoryReportDialog(QDialog):
 
     def _structure_problem_text(self) -> str:
         mismatches = self._directory_options.get("mismatches", [])
+        source = self._directory_options.get("structure_source", "desconocida")
+        template_year = self._directory_options.get("template_year")
+        if template_year:
+            source += f" (año plantilla {template_year})"
         lines = [
-            "La estructura no es uniforme entre los años. Para generar el "
-            "reporte, cada año debe contener las mismas carpetas."
+            "La estructura de los años no coincide con la definición que "
+            f"AnuarySignature utiliza para crear años ({source})."
         ]
         for item in mismatches:
             details = [
