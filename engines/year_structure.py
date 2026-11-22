@@ -92,11 +92,14 @@ def resolve_year_structure(
     if template_year is not None:
         template_dir = Path(base_path) / str(template_year)
         try:
-            categories = [
-                clean_fallback_template_folder_name(item.name, "[]")
-                for item in template_dir.iterdir()
-                if item.is_dir()
-            ]
+            categories = []
+            for item in template_dir.iterdir():
+                if not item.is_dir():
+                    continue
+                clean_name = strip_numeric_directory_prefix(item.name)
+                categories.append(
+                    "___[...]" if "___" in clean_name else clean_name
+                )
         except OSError as error:
             raise ValueError(
                 f"No se pudo leer el año plantilla {template_year}: {error}"
