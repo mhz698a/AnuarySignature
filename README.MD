@@ -81,19 +81,29 @@ naming convention. The tree report lists credential filenames under their
 character folders and indicates missing or ambiguous credentials. Credential
 JSON contents and image files are never opened, copied or embedded.
 
-The exclusion list is built dynamically from the actual dependent-drive
-structure. A numbered folder such as \`22. resources.local.personal\` is
-normalized to one category, displayed as \`xx. resources.local.personal\`.
-Each category appears only once, regardless of how many years contain it.
-Checking a category excludes that folder and its entire subtree in every year.
-\`resources.local.personal\` is excluded globally by default; unchecking it
-explicitly includes it in every year.
+The exclusion list is derived from the same authoritative source used by
+year creation. `folders.json` is preferred whenever it is a valid non-empty
+object. If it is unavailable or invalid, the report uses the same fallback
+template priority as year creation: current year, previous year, then the
+maximum existing year. If no template exists, it uses the same minimal
+fallback categories as year creation.
 
-Every four-digit year must contain the same number and semantic set of
-first-level folders. Numeric prefixes may differ by year, but the text after
-the number and separator must match. If a year is missing a category or has
-an extra one, the dialog identifies the mismatch and disables report
-generation until the directory structure is corrected.
+The Qt-independent `engines/year_structure.py` module is the shared resolver.
+Both `year_visor/year_creator.py` and the report service use its
+`folders.json` loader and fallback-template selection, avoiding a separate
+hardcoded or first-alphabetical-year definition.
+
+Numeric prefixes are normalized, so entries such as `22. album` and
+`23. album` become one `xx. album` category. Dynamic season names such as
+`22. ___[Season 2025]` and `23. ___[Season 2026]` become one
+`xx. ___[...]` category. Each category appears only once; checking it excludes
+matching folders and their subtrees in every year. `resources.local.personal`
+remains excluded globally by default.
+
+Every four-digit year is validated against the resolved year-creation
+structure, not against the first alphabetically detected year. A missing or
+extra category is identified by year and blocks report generation until the
+directory structure is corrected.
 
 Global exclusion preferences are stored in
 \`__structure__/dependent_directory_report_settings.json\`. Existing version-1
