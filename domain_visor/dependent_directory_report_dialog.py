@@ -182,6 +182,22 @@ class DependentDirectoryReportDialog(QDialog):
         scope.setWordWrap(True)
         layout.addWidget(scope)
 
+        self.mismatch_tree = QTreeWidget(self)
+        self.mismatch_tree.setColumnCount(4)
+        self.mismatch_tree.setHeaderLabels(
+            ["Año", "Carpetas", "Faltan", "Sobran"]
+        )
+        self.mismatch_tree.setColumnWidth(0, 72)
+        self.mismatch_tree.setColumnWidth(1, 82)
+        self.mismatch_tree.setColumnWidth(2, 285)
+        self.mismatch_tree.setColumnWidth(3, 285)
+        self.mismatch_tree.setAlternatingRowColors(True)
+        self.mismatch_tree.setUniformRowHeights(True)
+        self.mismatch_tree.setMinimumHeight(96)
+        self.mismatch_tree.setMaximumHeight(176)
+        self.mismatch_tree.setVisible(False)
+        layout.addWidget(self.mismatch_tree)
+
         format_row = QHBoxLayout()
         format_row.addWidget(QLabel("Formato del reporte:"))
         self.format_combo = QComboBox(self)

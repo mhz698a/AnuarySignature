@@ -125,6 +125,32 @@ Structure repository. Use the usual
 **Ajustes → Sincronizar Structure con GitHub → Subir cambios** action to
 publish them.
 
+## Plantilla y estructura de años
+
+Use **Ajustes → Editar plantilla y Estructura de años** to edit the private
+Structure file `__structure__/folders.json`. Each JSON key defines a folder
+inside every year, and its array defines the immediate subfolders to create
+inside that folder. New entries are created as empty directories in existing
+years.
+
+Each year uses the two-digit prefix
+`f"{max(0, year - 2003):02d}"`. When a managed folder or subfolder is renamed
+in the editor, AnuarySignature applies the corresponding rename in every
+four-digit year, recalculating that year's prefix. Existing content is
+preserved; a destination that already exists blocks the entire operation
+instead of overwriting or merging directories.
+
+The special top-level key `___[]` is a reserved season marker. The actual
+directory is named `<prefix>. ___[<season_name>]`, using the season stored
+for that year. The marker is therefore kept unchanged while its subfolders
+remain editable.
+
+Removing an entry from `folders.json` only removes it from the template.
+Existing year directories are deliberately retained and are not deleted.
+Template changes and directory updates are local changes in the private
+Structure checkout. Review them through the usual status indicator and publish
+them using **Ajustes → Sincronizar Structure con GitHub → Subir cambios**.
+
 ## Phase 6 — Structure status and character colours
 
 The main window status bar shows the private Structure Git state to the right
