@@ -396,12 +396,6 @@ class VasculumApp(QMainWindow):
         self.structure_sync_action.triggered.connect(
             lambda *_: self.open_structure_sync_dialog()
         )
-        self.year_structure_sync_action = settings_menu.addAction(
-            "Sincronizar folders.json con estructura anual"
-        )
-        self.year_structure_sync_action.triggered.connect(
-            lambda *_: self.open_year_structure_sync_dialog()
-        )
         settings_menu.addSeparator()
 
         self.dependent_path_action = settings_menu.addAction(
@@ -921,53 +915,6 @@ class VasculumApp(QMainWindow):
             f"color: {color}; padding-left: 10px; padding-right: 8px; "
             "font-weight: bold;"
         )
-
-    def open_year_structure_sync_dialog(self):
-        """Pause Structure polling while folders.json is updated."""
-        self.structure_status_monitor.pause()
-        if self.structure_status_monitor.is_busy():
-            if not getattr(self, "_year_structure_sync_dialog_waiting", False):
-                self._year_structure_sync_dialog_waiting = True
-                self.structure_status_monitor.idle.connect(
-                    self._open_year_structure_sync_dialog_when_idle
-                )
-            self.show_status_message(
-                "Esperando a que termine la comprobación de Structure…",
-                3000,
-            )
-            return
-        self._open_year_structure_sync_dialog_when_idle()
-
-    def _open_year_structure_sync_dialog_when_idle(self):
-        """Open the folders.json dialog after the status worker releases Git."""
-        if getattr(self, "_year_structure_sync_dialog_waiting", False):
-            try:
-                self.structure_status_monitor.idle.disconnect(
-                    self._open_year_structure_sync_dialog_when_idle
-                )
-            except (TypeError, RuntimeError):
-                pass
-            self._year_structure_sync_dialog_waiting = False
-
-        from domain_visor.year_structure_sync_dialog import YearStructureSyncDialog
-        from engines.structure_paths import get_structure_file
-
-        try:
-            dialog = YearStructureSyncDialog(
-                dependent_root=self.dependent_path,
-                folders_json_path=get_structure_file("folders.json"),
-                parent=self,
-            )
-            dialog.exec()
-            result = dialog.sync_result
-            if result and result.get("written"):
-                self.show_status_message(
-                    "folders.json se sincronizó con la estructura física de los años. "
-                    "El cambio local está pendiente de subir a Structure con GitHub.",
-                    8000,
-                )
-        finally:
-            self.structure_status_monitor.resume(refresh_immediately=True)
 
     def open_structure_sync_dialog(self):
         """Pause status polling before opening the interactive Git operations."""
