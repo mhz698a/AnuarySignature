@@ -289,6 +289,25 @@ class DependentDirectoryReportDialog(QDialog):
             self.save_preferences_button.setEnabled(False)
             return
 
+        self.mismatch_tree.clear()
+        mismatches = self._directory_options.get("mismatches", [])
+        for mismatch in mismatches:
+            missing = ", ".join(str(name) for name in mismatch.get("missing", [])) or "—"
+            extra = ", ".join(str(name) for name in mismatch.get("extra", [])) or "—"
+            item = QTreeWidgetItem(
+                [
+                    str(mismatch.get("year", "")),
+                    f"{mismatch.get('actual_folder_count', 0)} / "
+                    f"{mismatch.get('expected_folder_count', 0)}",
+                    missing,
+                    extra,
+                ]
+            )
+            item.setToolTip(2, missing)
+            item.setToolTip(3, extra)
+            self.mismatch_tree.addTopLevelItem(item)
+        self.mismatch_tree.setVisible(bool(mismatches))
+
         categories = self._directory_options.get("categories", [])
         for category in categories:
             item = QTreeWidgetItem(
