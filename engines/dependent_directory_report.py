@@ -16,6 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from engines.year_structure import (
+    normalize_directory_category,
+    resolve_year_structure,
+    strip_numeric_directory_prefix,
+)
+
 
 REPORT_FILENAME = "dependent_directory_report.json"
 REPORT_SETTINGS_FILENAME = "dependent_directory_report_settings.json"
@@ -42,6 +48,8 @@ class DependentDirectoryReportService:
         base_path: str | Path,
         report_path: str | Path,
         settings_path: str | Path | None = None,
+        structure_definition_path: str | Path | None = None,
+        current_year: int | None = None,
     ) -> None:
         self.base_path = Path(base_path).expanduser()
         self.report_path = Path(report_path).expanduser()
@@ -50,6 +58,12 @@ class DependentDirectoryReportService:
             if settings_path is not None
             else self.report_path.with_name(REPORT_SETTINGS_FILENAME)
         )
+        self.structure_definition_path = (
+            Path(structure_definition_path).expanduser()
+            if structure_definition_path is not None
+            else None
+        )
+        self.current_year = int(current_year or datetime.now().year)
 
     @staticmethod
     def _is_real_directory(entry: os.DirEntry[str]) -> bool:
@@ -94,20 +108,17 @@ class DependentDirectoryReportService:
 
     @classmethod
     def _directory_category_key(cls, folder_name: str) -> str:
-        """Return the semantic folder name without its year-specific number."""
-        normalized = str(folder_name or "").strip()
-        match = _DIRECTORY_NUMBER_PREFIX_PATTERN.fullmatch(normalized)
-        if match:
-            normalized = match.group("name")
-        return re.sub(r"\s+", " ", normalized).strip().casefold()
+        """Return the shared semantic key, including dynamic season folders."""
+        return normalize_directory_category(folder_name)
 
     @classmethod
     def _directory_category_label(cls, folder_name: str) -> str:
-        """Display numbered categories with a neutral xx. prefix."""
-        normalized = str(folder_name or "").strip()
-        match = _DIRECTORY_NUMBER_PREFIX_PATTERN.fullmatch(normalized)
-        if match:
-            return f"xx. {match.group('name').strip()}"
+        """Display year-numbered and season-specific categories generically."""
+        normalized = strip_numeric_directory_prefix(folder_name)
+        if normalize_directory_category(normalized) == "___[]":
+            return "xx. ___[...]"
+        if normalized != str(folder_name or "").strip():
+            return f"xx. {normalized}"
         return normalized
 
     @classmethod
@@ -300,11 +311,11 @@ class DependentDirectoryReportService:
         self,
         preferences: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Return one exclusion option per semantic folder category across all years."""
+        """List categories defined by the same source used for year creation."""
         root = self.base_path.resolve()
         if not root.exists() or not root.is_dir():
             raise DependentDirectoryReportError(
-                f"La unidad dependiente no está disponible o no es un directorio:\n{root}"
+                f"La unidad dependiente no está disponible o no es un directorio:\\n{root}"
             )
 
         current_preferences = (
@@ -312,65 +323,74 @@ class DependentDirectoryReportService:
             if preferences is not None
             else self.load_exclusion_preferences()
         )
+        try:
+            definition = resolve_year_structure(
+                root,
+                self.structure_definition_path,
+                self.current_year,
+            )
+        except (OSError, ValueError) as error:
+            raise DependentDirectoryReportError(
+                f"No se pudo resolver la estructura de creación de años: {error}"
+            ) from error
+
+        expected_categories = definition["categories"]
+        expected_counts: Counter[str] = Counter(
+            self._directory_category_key(name)
+            for name in expected_categories
+        )
+        category_labels = {
+            self._directory_category_key(name): self._directory_category_label(name)
+            for name in expected_categories
+        }
         year_data: list[dict[str, Any]] = []
-        all_labels: dict[str, str] = {}
+        mismatches: list[dict[str, Any]] = []
+
         for year_entry in self._directory_entries(root):
             if not _YEAR_DIRECTORY_PATTERN.fullmatch(year_entry.name):
                 continue
 
             folder_entries = self._directory_entries(Path(year_entry.path))
-            category_counts: Counter[str] = Counter()
-            folder_names: dict[str, list[str]] = {}
+            actual_counts: Counter[str] = Counter()
+            actual_labels: dict[str, str] = {}
             for folder_entry in folder_entries:
                 key = self._directory_category_key(folder_entry.name)
-                category_counts[key] += 1
-                folder_names.setdefault(key, []).append(folder_entry.name)
-                label = self._directory_category_label(folder_entry.name)
-                if key not in all_labels or label.startswith("xx. "):
-                    all_labels[key] = label
+                actual_counts[key] += 1
+                actual_labels.setdefault(
+                    key,
+                    self._directory_category_label(folder_entry.name),
+                )
 
-            year_data.append(
-                {
-                    "year": year_entry.name,
-                    "folder_count": len(folder_entries),
-                    "category_counts": category_counts,
-                    "folder_names": folder_names,
-                }
-            )
-
-        year_data.sort(key=lambda item: item["year"])
-        reference_counts = (
-            year_data[0]["category_counts"] if year_data else Counter()
-        )
-        mismatches: list[dict[str, Any]] = []
-        for item in year_data[1:]:
-            actual_counts = item["category_counts"]
-            missing_keys = list((reference_counts - actual_counts).elements())
-            extra_keys = list((actual_counts - reference_counts).elements())
+            missing_keys = list((expected_counts - actual_counts).elements())
+            extra_keys = list((actual_counts - expected_counts).elements())
             if missing_keys or extra_keys:
+                labels = {**actual_labels, **category_labels}
                 mismatches.append(
                     {
-                        "year": item["year"],
-                        "expected_folder_count": sum(reference_counts.values()),
-                        "actual_folder_count": item["folder_count"],
+                        "year": year_entry.name,
+                        "expected_folder_count": sum(expected_counts.values()),
+                        "actual_folder_count": len(folder_entries),
                         "missing": [
-                            all_labels.get(key, key)
+                            labels.get(key, key)
                             for key in sorted(set(missing_keys))
                         ],
                         "extra": [
-                            all_labels.get(key, key)
+                            labels.get(key, key)
                             for key in sorted(set(extra_keys))
                         ],
                     }
                 )
 
-        all_keys = sorted(all_labels)
-        options = []
-        for key in all_keys:
-            occurrences = sum(
-                item["category_counts"].get(key, 0)
-                for item in year_data
+            year_data.append(
+                {
+                    "year": year_entry.name,
+                    "category_counts": actual_counts,
+                }
             )
+
+        year_data.sort(key=lambda item: item["year"])
+        options = []
+        for key in sorted(expected_counts):
             years_present = sum(
                 item["category_counts"].get(key, 0) > 0
                 for item in year_data
@@ -378,14 +398,14 @@ class DependentDirectoryReportService:
             options.append(
                 {
                     "key": key,
-                    "name": all_labels[key],
+                    "name": category_labels.get(key, key),
                     "excluded": self._is_excluded(
                         "",
                         key,
                         current_preferences,
                     ),
                     "years_present": years_present,
-                    "directory_count": occurrences,
+                    "directory_count": expected_counts[key] * len(year_data),
                 }
             )
 
@@ -394,7 +414,9 @@ class DependentDirectoryReportService:
             "year_count": len(year_data),
             "categories": options,
             "structure_consistent": not mismatches,
-            "reference_folder_count": sum(reference_counts.values()),
+            "reference_folder_count": sum(expected_counts.values()),
+            "structure_source": definition["source"],
+            "template_year": definition["template_year"],
             "mismatches": mismatches,
         }
 
@@ -550,44 +572,63 @@ class DependentDirectoryReportService:
             if _YEAR_DIRECTORY_PATTERN.fullmatch(entry.name)
         ]
 
-        # Read every year's immediate folders once and compare their semantic
-        # names before traversing any second-level directory.
+        # Resolve the expected layout through the exact source used by year creation:
+        # folders.json first, then the same fallback-template year selection.
+        try:
+            definition = resolve_year_structure(
+                root,
+                self.structure_definition_path,
+                self.current_year,
+            )
+        except (OSError, ValueError) as error:
+            raise DependentDirectoryReportError(
+                f"No se pudo resolver la estructura de creación de años: {error}"
+            ) from error
+
+        expected_counts: Counter[str] = Counter(
+            self._directory_category_key(name)
+            for name in definition["categories"]
+        )
+        category_labels = {
+            self._directory_category_key(name): self._directory_category_label(name)
+            for name in definition["categories"]
+        }
         year_first_levels: list[
             tuple[os.DirEntry[str], list[os.DirEntry[str]]]
         ] = []
-        reference_counts: Counter[str] | None = None
-        category_labels: dict[str, str] = {}
         mismatches: list[dict[str, Any]] = []
+
         for year_entry in year_entries:
             first_level = self._directory_entries(Path(year_entry.path))
-            counts: Counter[str] = Counter()
+            actual_counts: Counter[str] = Counter()
+            actual_labels: dict[str, str] = {}
             for folder_entry in first_level:
                 key = self._directory_category_key(folder_entry.name)
-                counts[key] += 1
-                label = self._directory_category_label(folder_entry.name)
-                if key not in category_labels or label.startswith("xx. "):
-                    category_labels[key] = label
-            if reference_counts is None:
-                reference_counts = counts
-            else:
-                missing_keys = list((reference_counts - counts).elements())
-                extra_keys = list((counts - reference_counts).elements())
-                if missing_keys or extra_keys:
-                    mismatches.append(
-                        {
-                            "year": year_entry.name,
-                            "expected_folder_count": sum(reference_counts.values()),
-                            "actual_folder_count": len(first_level),
-                            "missing": [
-                                category_labels.get(key, key)
-                                for key in sorted(set(missing_keys))
-                            ],
-                            "extra": [
-                                category_labels.get(key, key)
-                                for key in sorted(set(extra_keys))
-                            ],
-                        }
-                    )
+                actual_counts[key] += 1
+                actual_labels.setdefault(
+                    key,
+                    self._directory_category_label(folder_entry.name),
+                )
+
+            missing_keys = list((expected_counts - actual_counts).elements())
+            extra_keys = list((actual_counts - expected_counts).elements())
+            if missing_keys or extra_keys:
+                labels = {**actual_labels, **category_labels}
+                mismatches.append(
+                    {
+                        "year": year_entry.name,
+                        "expected_folder_count": sum(expected_counts.values()),
+                        "actual_folder_count": len(first_level),
+                        "missing": [
+                            labels.get(key, key)
+                            for key in sorted(set(missing_keys))
+                        ],
+                        "extra": [
+                            labels.get(key, key)
+                            for key in sorted(set(extra_keys))
+                        ],
+                    }
+                )
             year_first_levels.append((year_entry, first_level))
 
         if mismatches:
@@ -602,10 +643,13 @@ class DependentDirectoryReportService:
                 if mismatch["extra"]:
                     message += "; sobran: " + ", ".join(mismatch["extra"])
                 details.append(message)
+            source_description = definition["source"]
+            if definition["template_year"]:
+                source_description += f" ({definition['template_year']})"
             raise DependentDirectoryReportError(
-                "La estructura de carpetas de los años no es uniforme. "
-                "Cada año debe tener las mismas categorías y cantidad de carpetas.\n"
-                + "\n".join(details)
+                "La estructura de carpetas no coincide con la plantilla usada "
+                f"por AnuarySignature para crear años: {source_description}.\\n"
+                + "\\n".join(details)
             )
 
         # Prepare a shallow scan plan so progress has a real total.
@@ -780,11 +824,14 @@ class DependentDirectoryReportService:
         )
 
         return {
-            "schema_version": 4,
+            "schema_version": 5,
             "generated_at": datetime.now().astimezone().isoformat(
                 timespec="seconds"
             ),
             "root_path": str(root),
+            "structure_source": definition["source"],
+            "template_year": definition["template_year"],
+            "expected_folder_count": sum(expected_counts.values()),
             "max_subfolder_levels_after_year": (
                 MAX_SUBFOLDER_LEVELS_AFTER_YEAR
             ),
