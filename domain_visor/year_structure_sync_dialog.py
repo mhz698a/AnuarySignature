@@ -288,7 +288,6 @@ class YearStructureSyncDialog(QDialog):
             return
 
         removed_categories = result.get("removed_categories", [])
-        removed_subfolders = result.get("removed_subfolders", [])
         details = [
             "Se reconstruirá folders.json con la unión de las carpetas "
             "encontradas en todos los años.",
