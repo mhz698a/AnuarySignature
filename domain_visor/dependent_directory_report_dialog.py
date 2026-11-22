@@ -174,7 +174,7 @@ class DependentDirectoryReportDialog(QDialog):
         layout.addWidget(title)
 
         scope = QLabel(
-            f"Unidad dependiente: {self.base_path}\\n"
+            f"Unidad dependiente: {self.base_path}\n"
             "La lista muestra cada categoría una sola vez, sin el prefijo. "
             "El prefijo real de cada año se calcula como max(0, año - 2003). "
             "Las exclusiones se aplican globalmente y omiten toda la subcarpeta."
@@ -209,7 +209,6 @@ class DependentDirectoryReportDialog(QDialog):
             "background-color: #252525; border: 1px solid #444444; "
             "border-radius: 4px; padding: 4px 8px;"
         )
-        layout.addWidget(self.status_label)
         layout.addWidget(self.status_label)
 
         self.progress_bar = QProgressBar(self)
@@ -260,7 +259,7 @@ class DependentDirectoryReportDialog(QDialog):
             if item.get("extra"):
                 details.append("sobran: " + ", ".join(item["extra"]))
             lines.append(" • ".join(details))
-        return "\\n".join(lines)
+        return "\n".join(lines)
 
     def _populate_directory_categories(self):
         self.directory_tree.clear()
@@ -326,8 +325,8 @@ class DependentDirectoryReportDialog(QDialog):
                 f"{len(categories)} categorías · {source_label}"
             )
             details = (
-                f"Unidad: {self.base_path}\\n"
-                f"Fuente de estructura: {source_label}\\n"
+                f"Unidad: {self.base_path}\n"
+                f"Fuente de estructura: {source_label}\n"
                 "El prefijo de cada año se calcula como max(0, año - 2003). "
                 "Las categorías se muestran sin ese prefijo y las exclusiones "
                 "se aplican globalmente."
@@ -340,7 +339,7 @@ class DependentDirectoryReportDialog(QDialog):
             self._set_status(
                 f"Estructura no uniforme: {mismatch_count} años con diferencias.",
                 self._structure_problem_text()
-                + "\\n\\nLa generación permanece deshabilitada hasta "
+                + "\n\nLa generación permanece deshabilitada hasta "
                 "corregir las carpetas faltantes o adicionales.",
             )
 
@@ -447,19 +446,19 @@ class DependentDirectoryReportDialog(QDialog):
             f"{result.get('directory_count', 0)} directorios."
         )
         details = (
-            "Reporte generado correctamente.\\n"
-            f"Formato: {result.get('report_format', '').upper()}\\n"
-            f"Años incluidos: {result.get('year_count', 0)}\\n"
-            f"Directorios registrados: {result.get('directory_count', 0)}\\n"
-            f"Carpetas excluidas: {result.get('excluded_directory_count', 0)}\\n"
-            f"Carpetas de personajes: {result.get('character_count', 0)}\\n"
-            f"Credenciales encontradas: {result.get('credential_found_count', 0)}\\n"
-            f"Sin credencial: {result.get('credential_missing_count', 0)}\\n"
-            f"Ubicación ambigua: {result.get('credential_ambiguous_count', 0)}\\n"
+            "Reporte generado correctamente.\n"
+            f"Formato: {result.get('report_format', '').upper()}\n"
+            f"Años incluidos: {result.get('year_count', 0)}\n"
+            f"Directorios registrados: {result.get('directory_count', 0)}\n"
+            f"Carpetas excluidas: {result.get('excluded_directory_count', 0)}\n"
+            f"Carpetas de personajes: {result.get('character_count', 0)}\n"
+            f"Credenciales encontradas: {result.get('credential_found_count', 0)}\n"
+            f"Sin credencial: {result.get('credential_missing_count', 0)}\n"
+            f"Ubicación ambigua: {result.get('credential_ambiguous_count', 0)}\n"
             f"Con archivos adicionales: "
-            f"{result.get('credential_additional_candidates_count', 0)}\\n"
+            f"{result.get('credential_additional_candidates_count', 0)}\n"
             f"Archivos de credencial detectados: "
-            f"{result.get('credential_file_count', 0)}\\n"
+            f"{result.get('credential_file_count', 0)}\n"
             f"Archivo: {result.get('report_path', '')}"
         )
         self._set_status(summary, details)
