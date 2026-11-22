@@ -11,6 +11,11 @@ from year_visor.year_utils import calculate_id_package_default
 from character_visor.character_manager import CharacterManager
 from engines.structure_paths import get_structure_file
 from engines.dependent_directory_report import DependentDirectoryReportService
+from engines.year_structure import (
+    clean_fallback_template_folder_name,
+    find_fallback_template_year,
+    load_folders_json,
+)
 
 class SeasonNameDialog(QDialog):
     """
@@ -138,28 +143,6 @@ def validate_date_constraints(clicked_year: int, today_date=None) -> tuple[bool,
     return False, "Fecha o año no válido para la creación."
 
 
-def find_fallback_template_year(base_path: Path, current_year: int) -> int:
-    """
-    Busca la mejor carpeta de año plantilla en base_path:
-    - Primero comprueba current_year.
-    - Luego comprueba current_year - 1.
-    - Si no, busca el año máximo que exista en base_path.
-    """
-    if (base_path / str(current_year)).exists():
-        return current_year
-    if (base_path / str(current_year - 1)).exists():
-        return current_year - 1
-
-    existing_years = []
-    if base_path.exists():
-        for item in base_path.iterdir():
-            if item.is_dir() and item.name.isdigit():
-                existing_years.append(int(item.name))
-    if existing_years:
-        return max(existing_years)
-    return None
-
-
 def replicate_structure_from_fallback(template_year_dir: Path, target_year_dir: Path, new_prefix: str, season_name: str):
     """
     Replica la estructura de directorios del año plantilla al año de destino.
@@ -170,16 +153,10 @@ def replicate_structure_from_fallback(template_year_dir: Path, target_year_dir: 
 
     for item in template_year_dir.iterdir():
         if item.is_dir():
-            dir_name = item.name
-            clean_name = dir_name
-
-            if ". " in dir_name:
-                parts = dir_name.split(". ", 1)
-                if parts[0].isdigit():
-                    clean_name = parts[1]
-
-            if "___" in clean_name:
-                clean_name = f"___[{season_name}]"
+            clean_name = clean_fallback_template_folder_name(
+                item.name,
+                season_name,
+            )
 
             new_dir_name = f"{new_prefix}. {clean_name}"
             new_dir_path = target_year_dir / new_dir_name
@@ -188,14 +165,10 @@ def replicate_structure_from_fallback(template_year_dir: Path, target_year_dir: 
             # Replicar subcarpetas
             for child in item.iterdir():
                 if child.is_dir():
-                    child_name = child.name
-                    clean_child = child_name
-
-                    if ". " in child_name:
-                        c_parts = child_name.split(". ", 1)
-                        if c_parts[0].isdigit():
-                            clean_child = c_parts[1]
-
+                    clean_child = clean_fallback_template_folder_name(
+                        child.name,
+                        season_name,
+                    )
                     new_child_name = f"{new_prefix}. {clean_child}"
                     (new_dir_path / new_child_name).mkdir(parents=True, exist_ok=True)
 
@@ -308,18 +281,8 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
 
     # 4. Cargar folders.json o fallback
     folders_json_path = get_structure_file("folders.json")
-    use_fallback = True
-    json_data = {}
-
-    if folders_json_path.exists():
-        try:
-            with open(folders_json_path, "r", encoding="utf-8") as f:
-                json_data = json.load(f)
-            # Validar que sea un diccionario no vacío
-            if isinstance(json_data, dict) and json_data:
-                use_fallback = False
-        except Exception:
-            use_fallback = True
+    json_data = load_folders_json(folders_json_path)
+    use_fallback = json_data is None
 
     # 5. Crear la estructura
     try:
@@ -365,6 +328,7 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
             DependentDirectoryReportService(
                 base_path,
                 get_structure_file("dependent_directory_report.json"),
+                structure_definition_path=folders_json_path,
             ).generate_or_update()
         except Exception as report_error:
             QMessageBox.warning(
