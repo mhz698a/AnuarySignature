@@ -955,6 +955,16 @@ class DependentDirectoryReportService:
             "REPORTE DE UNIDAD DEPENDIENTE",
             f"Unidad: {report.get('root_path', '')}",
             f"Generado: {report.get('generated_at', '')}",
+            (
+                "Estructura de referencia: "
+                + str(report.get("structure_source", "desconocida"))
+                + (
+                    f" (año plantilla {report['template_year']})"
+                    if report.get("template_year")
+                    else ""
+                )
+            ),
+            f"Carpetas esperadas por año: {report.get('expected_folder_count', 0)}",
             f"Años: {report.get('year_count', 0)}",
             f"Directorios registrados: {report.get('directory_count', 0)}",
             f"Carpetas excluidas: {report.get('excluded_directory_count', 0)}",
