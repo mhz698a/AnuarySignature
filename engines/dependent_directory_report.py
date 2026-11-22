@@ -648,8 +648,8 @@ class DependentDirectoryReportService:
                 source_description += f" ({definition['template_year']})"
             raise DependentDirectoryReportError(
                 "La estructura de carpetas no coincide con la plantilla usada "
-                f"por AnuarySignature para crear años: {source_description}.\\n"
-                + "\\n".join(details)
+                f"por AnuarySignature para crear años: {source_description}.\n"
+                + "\n".join(details)
             )
 
         # Prepare a shallow scan plan so progress has a real total.
