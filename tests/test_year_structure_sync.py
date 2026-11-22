@@ -72,9 +72,9 @@ def test_preview_unions_all_years_and_drops_categories_removed_everywhere(tmp_pa
 
     assert result["years"] == ["2025", "2024"]
     assert result["folders_data"] == {
-        "album": ["_edits", "_ahead", "_old"],
+        "album": ["_old", "_edits", "_ahead"],
         "music": ["_b.r", "_b.t"],
-        "___[]": ["_eps.on", "vocals"],
+        "___[]": ["vocals", "_eps.on"],
         "identity": [],
     }
     assert result["added_categories"] == ["identity"]
