@@ -253,19 +253,56 @@ class YearStructureSyncDialog(QDialog):
             f"Años examinados: {result.get('year_count', 0)} "
             f"({', '.join(result.get('years', []))})   |   "
             f"Categorías: {result.get('category_count', 0)}   |   "
-            f"Subcarpetas: {result.get('subfolder_count', 0)}\n"
+            f"Subcarpetas: {result.get('subfolder_count', 0)}\\n"
             f"Categorías nuevas: {len(added_categories)}   |   "
             f"Categorías retiradas: {len(removed_categories)}   |   "
             f"Subcarpetas nuevas: {len(added_subfolders)}   |   "
             f"Subcarpetas retiradas: {len(removed_subfolders)}"
         )
-        self.preview_edit.setPlainText(
-            json.dumps(
-                result.get("folders_data", {}),
-                indent=2,
-                ensure_ascii=False,
+
+        diff_lines = ["CAMBIOS DETECTADOS"]
+        diff_lines.append(
+            "Categorías nuevas: "
+            + (", ".join(added_categories) if added_categories else "ninguna")
+        )
+        diff_lines.append(
+            "Categorías retiradas: "
+            + (", ".join(removed_categories) if removed_categories else "ninguna")
+        )
+        diff_lines.append(
+            "Subcarpetas nuevas: "
+            + (
+                ", ".join(
+                    f"{item['category']}/{item['name']}"
+                    for item in added_subfolders
+                )
+                if added_subfolders
+                else "ninguna"
             )
         )
+        diff_lines.append(
+            "Subcarpetas retiradas: "
+            + (
+                ", ".join(
+                    f"{item['category']}/{item['name']}"
+                    for item in removed_subfolders
+                )
+                if removed_subfolders
+                else "ninguna"
+            )
+        )
+        diff_lines.extend(
+            [
+                "",
+                "FOLDERS.JSON PROPUESTO",
+                json.dumps(
+                    result.get("folders_data", {}),
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+            ]
+        )
+        self.preview_edit.setPlainText("\\n".join(diff_lines))
 
     def _confirm_and_apply(self) -> None:
         result = self._preview_result
