@@ -202,3 +202,33 @@ def test_invalid_and_unsafe_template_names_are_rejected(tmp_path):
             rows,
             original,
         )
+
+
+def test_invalid_season_metadata_cannot_escape_the_year_directory(tmp_path):
+    dependent = tmp_path / "_Internal"
+    year_path = dependent / "2025"
+    prefix = f"{max(0, 2025 - 2003):02d}"
+    identity = year_path / f"{prefix}. identity"
+    identity.mkdir(parents=True)
+    (identity / "The_ID_Year_2025.json").write_text(
+        json.dumps({"year_data": {"season_name": "../outside"}}),
+        encoding="utf-8",
+    )
+
+    structure = tmp_path / "Structure" / "__structure__"
+    structure.mkdir(parents=True)
+    template_path = structure / "folders.json"
+    original = {"___[]": [], "identity": []}
+    template_path.write_text(json.dumps(original), encoding="utf-8")
+
+    rows = [
+        {"old_name": "___[]", "name": "___[]", "subfolders": []},
+        {"old_name": "identity", "name": "identity", "subfolders": []},
+    ]
+    service = YearStructureEditorService(dependent, template_path)
+
+    with pytest.raises(YearStructureEditorError, match="nombre de temporada"):
+        service.preview_template_rows(rows, original)
+
+    assert not (tmp_path / "outside").exists()
+    assert json.loads(template_path.read_text(encoding="utf-8")) == original

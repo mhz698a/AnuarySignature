@@ -211,6 +211,26 @@ class YearStructureEditorService:
         return f"{max(0, year - 2003):02d}"
 
     @staticmethod
+    def _validate_season_name(value: Any, year: int) -> str:
+        """Reject season metadata that could escape or corrupt a year path."""
+        season_name = str(value or "").strip()
+        invalid = (
+            not season_name
+            or season_name in {".", ".."}
+            or any(
+                character in _INVALID_WINDOWS_NAME_CHARACTERS
+                or ord(character) < 32
+                for character in season_name
+            )
+        )
+        if invalid:
+            raise YearStructureEditorError(
+                f"El nombre de temporada del año {year} está vacío o contiene "
+                "caracteres no válidos para una carpeta."
+            )
+        return season_name
+
+    @staticmethod
     def _directory_exists(path: Path, description: str) -> bool:
         if path.is_symlink():
             raise YearStructureEditorError(
@@ -241,7 +261,7 @@ class YearStructureEditorService:
                 f"El año {year} contiene más de una carpeta de temporada."
             )
         if matches:
-            return matches[0]
+            return self._validate_season_name(matches[0], year)
 
         identity_path = (
             year_path
@@ -260,13 +280,7 @@ class YearStructureEditorService:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             season_name = ""
 
-        season_name = str(season_name or "").strip()
-        if not season_name:
-            raise YearStructureEditorError(
-                f"No se pudo determinar el nombre de temporada del año {year}. "
-                "No se creará una carpeta ___[] con un nombre incorrecto."
-            )
-        return season_name
+        return self._validate_season_name(season_name, year)
 
     def _year_folder_path(
         self,
