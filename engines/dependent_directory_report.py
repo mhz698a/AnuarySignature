@@ -544,10 +544,55 @@ class DependentDirectoryReportService:
             )
 
         preferences = self.load_exclusion_preferences()
-        structure_options = self.list_directory_category_options(preferences)
-        if not structure_options["structure_consistent"]:
+        year_entries = [
+            entry
+            for entry in self._directory_entries(root)
+            if _YEAR_DIRECTORY_PATTERN.fullmatch(entry.name)
+        ]
+
+        # Read every year's immediate folders once and compare their semantic
+        # names before traversing any second-level directory.
+        year_first_levels: list[
+            tuple[os.DirEntry[str], list[os.DirEntry[str]]]
+        ] = []
+        reference_counts: Counter[str] | None = None
+        category_labels: dict[str, str] = {}
+        mismatches: list[dict[str, Any]] = []
+        for year_entry in year_entries:
+            first_level = self._directory_entries(Path(year_entry.path))
+            counts: Counter[str] = Counter()
+            for folder_entry in first_level:
+                key = self._directory_category_key(folder_entry.name)
+                counts[key] += 1
+                label = self._directory_category_label(folder_entry.name)
+                if key not in category_labels or label.startswith("xx. "):
+                    category_labels[key] = label
+            if reference_counts is None:
+                reference_counts = counts
+            else:
+                missing_keys = list((reference_counts - counts).elements())
+                extra_keys = list((counts - reference_counts).elements())
+                if missing_keys or extra_keys:
+                    mismatches.append(
+                        {
+                            "year": year_entry.name,
+                            "expected_folder_count": sum(reference_counts.values()),
+                            "actual_folder_count": len(first_level),
+                            "missing": [
+                                category_labels.get(key, key)
+                                for key in sorted(set(missing_keys))
+                            ],
+                            "extra": [
+                                category_labels.get(key, key)
+                                for key in sorted(set(extra_keys))
+                            ],
+                        }
+                    )
+            year_first_levels.append((year_entry, first_level))
+
+        if mismatches:
             details = []
-            for mismatch in structure_options["mismatches"]:
+            for mismatch in mismatches:
                 message = (
                     f"{mismatch['year']}: {mismatch['actual_folder_count']} carpetas "
                     f"(se esperaban {mismatch['expected_folder_count']})"
@@ -563,21 +608,14 @@ class DependentDirectoryReportService:
                 + "\n".join(details)
             )
 
-        year_entries = [
-            entry
-            for entry in self._directory_entries(root)
-            if _YEAR_DIRECTORY_PATTERN.fullmatch(entry.name)
-        ]
-
         # Prepare a shallow scan plan so progress has a real total.
         # Excluded folders are never enumerated below their year-level directory.
         year_plans: list[dict[str, Any]] = []
-        for year_entry in year_entries:
+        for year_entry, first_level in year_first_levels:
             year_name = year_entry.name
             if progress_callback is not None:
                 progress_callback(0, 0, f"Preparando el año {year_name}…")
 
-            first_level = self._directory_entries(Path(year_entry.path))
             folder_plans = []
             for first_entry in first_level:
                 relative_path = f"{year_name}/{first_entry.name}"
