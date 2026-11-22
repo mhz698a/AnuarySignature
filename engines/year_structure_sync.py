@@ -18,7 +18,7 @@ from engines.year_structure import (
 )
 
 
-_YEAR_DIRECTORY = re.compile(r"^\\d{4}$")
+_YEAR_DIRECTORY = re.compile(r"^\d{4}$")
 _REPARSE_POINT = 0x400
 
 
