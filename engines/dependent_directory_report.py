@@ -112,11 +112,11 @@ class DependentDirectoryReportService:
 
     @classmethod
     def _directory_category_label(cls, folder_name: str) -> str:
-        """Display all year-level categories with the neutral xx. prefix."""
+        """Display the category name without its year-dependent numeric prefix."""
         normalized = strip_numeric_directory_prefix(folder_name)
         if normalize_directory_category(normalized) == "___[]":
-            return "xx. ___[...]"
-        return f"xx. {normalized}"
+            return "___[...]"
+        return normalized
 
     @classmethod
     def _normalise_directory_name_list(cls, values: Any) -> list[str]:
