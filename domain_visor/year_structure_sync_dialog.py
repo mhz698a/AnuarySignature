@@ -119,9 +119,9 @@ class YearStructureSyncDialog(QDialog):
         layout.setSpacing(9)
 
         description = QLabel(
-            "Reconstruye folders.json a partir de las carpetas físicas de todos "
-            "los años. Una categoría o subcarpeta se conserva mientras exista "
-            "en al menos un año; los prefijos numéricos se normalizan."
+            "Sincroniza únicamente las carpetas principales de cada año. "
+            "Las listas de subcarpetas de folders.json son plantillas manuales "
+            "y se conservan intactas; no se leen las subcarpetas físicas."
         )
         description.setWordWrap(True)
         layout.addWidget(description)
@@ -247,52 +247,30 @@ class YearStructureSyncDialog(QDialog):
     def _display_result(self, result: dict[str, Any]) -> None:
         added_categories = result.get("added_categories", [])
         removed_categories = result.get("removed_categories", [])
-        added_subfolders = result.get("added_subfolders", [])
-        removed_subfolders = result.get("removed_subfolders", [])
         self.summary_label.setText(
             f"Años examinados: {result.get('year_count', 0)} "
             f"({', '.join(result.get('years', []))})   |   "
-            f"Categorías: {result.get('category_count', 0)}   |   "
-            f"Subcarpetas: {result.get('subfolder_count', 0)}\\n"
+            f"Categorías principales: {result.get('category_count', 0)}   |   "
+            f"Entradas de subcarpetas plantilla conservadas: "
+            f"{result.get('subfolder_count', 0)}\\n"
             f"Categorías nuevas: {len(added_categories)}   |   "
-            f"Categorías retiradas: {len(removed_categories)}   |   "
-            f"Subcarpetas nuevas: {len(added_subfolders)}   |   "
-            f"Subcarpetas retiradas: {len(removed_subfolders)}"
+            f"Categorías retiradas: {len(removed_categories)}"
         )
 
         diff_lines = ["CAMBIOS DETECTADOS"]
         diff_lines.append(
-            "Categorías nuevas: "
+            "Carpetas principales nuevas: "
             + (", ".join(added_categories) if added_categories else "ninguna")
         )
         diff_lines.append(
-            "Categorías retiradas: "
+            "Carpetas principales retiradas: "
             + (", ".join(removed_categories) if removed_categories else "ninguna")
-        )
-        diff_lines.append(
-            "Subcarpetas nuevas: "
-            + (
-                ", ".join(
-                    f"{item['category']}/{item['name']}"
-                    for item in added_subfolders
-                )
-                if added_subfolders
-                else "ninguna"
-            )
-        )
-        diff_lines.append(
-            "Subcarpetas retiradas: "
-            + (
-                ", ".join(
-                    f"{item['category']}/{item['name']}"
-                    for item in removed_subfolders
-                )
-                if removed_subfolders
-                else "ninguna"
-            )
         )
         diff_lines.extend(
             [
+                "",
+                "Las listas de subcarpetas siguientes se conservan tal como "
+                "están definidas manualmente en folders.json.",
                 "",
                 "FOLDERS.JSON PROPUESTO",
                 json.dumps(
@@ -302,7 +280,7 @@ class YearStructureSyncDialog(QDialog):
                 ),
             ]
         )
-        self.preview_edit.setPlainText("\n".join(diff_lines))
+        self.preview_edit.setPlainText("\\n".join(diff_lines))
 
     def _confirm_and_apply(self) -> None:
         result = self._preview_result
@@ -319,12 +297,34 @@ class YearStructureSyncDialog(QDialog):
             "se retirarán del JSON. Las que sigan presentes al menos en un "
             "año se conservarán.",
         ]
-        if removed_categories or removed_subfolders:
+        if removed_categor    def _confirm_and_apply(self) -> None:
+        result = self._preview_result
+        if result is None or not result.get("changed"):
+            return
+
+        removed_categories = result.get("removed_categories", [])
+        details = [
+            "Se actualizarán únicamente las carpetas principales de folders.json "
+            "según las carpetas principales encontradas en todos los años.",
+            "",
+            "Las listas de subcarpetas definidas manualmente se conservarán "
+            "intactas. No se examinarán ni copiarán las subcarpetas físicas.",
+        ]
+        if removed_categories:
             details.extend(
                 [
                     "",
-                    f"Categorías que se retirarán: {len(removed_categories)}",
-                    f"Subcarpetas que se retirarán: {len(removed_subfolders)}",
+                    "Carpetas principales que se retirarán:",
+                    *removed_categories,
+                ]
+            )
+        added_categories = result.get("added_categories", [])
+        if added_categories:
+            details.extend(
+                [
+                    "",
+                    "Carpetas principales nuevas (se agregarán con lista vacía):",
+                    *added_categories,
                 ]
             )
         details.extend(
@@ -340,7 +340,7 @@ class YearStructureSyncDialog(QDialog):
         reply = QMessageBox.question(
             self,
             "Confirmar sincronización",
-            "\n".join(details),
+            "\\n".join(details),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
