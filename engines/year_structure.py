@@ -45,9 +45,9 @@ def find_fallback_template_year(
 ) -> int | None:
     """Use the same template priority as year creation."""
     root = Path(base_path)
-    if (root / str(current_year)).exists():
+    if is_real_directory(root / str(current_year)):
         return current_year
-    if (root / str(current_year - 1)).exists():
+    if is_real_directory(root / str(current_year - 1)):
         return current_year - 1
 
     existing_years = []
