@@ -16,6 +16,7 @@ from engines.year_structure import (
     find_fallback_template_year,
     load_folders_json,
     is_real_directory,
+    MINIMAL_FALLBACK_CATEGORIES,
 )
 
 class SeasonNameDialog(QDialog):
@@ -296,9 +297,16 @@ def trigger_year_creation(year_value: int, parent_window, base_path=None, infra_
             else:
                 # Si de plano no hay ninguna plantilla, crear una básica con código mínimo de respaldo
                 target_year_dir.mkdir(parents=True, exist_ok=True)
-                (target_year_dir / f"{new_prefix}. ___[{season_name}]").mkdir(parents=True, exist_ok=True)
-                (target_year_dir / f"{new_prefix}. album").mkdir(parents=True, exist_ok=True)
-                (target_year_dir / f"{new_prefix}. identity").mkdir(parents=True, exist_ok=True)
+                for category in MINIMAL_FALLBACK_CATEGORIES:
+                    clean_name = (
+                        f"___[{season_name}]"
+                        if category == "___[]"
+                        else category
+                    )
+                    (target_year_dir / f"{new_prefix}. {clean_name}").mkdir(
+                        parents=True,
+                        exist_ok=True,
+                    )
         else:
             create_structure_from_json(json_data, target_year_dir, new_prefix, season_name)
 
