@@ -367,7 +367,7 @@ class YearStructureEditorService:
                     if old_path != new_path:
                         if new_exists:
                             raise YearStructureEditorError(
-                                "No se puede renombrar porque ya existe la carpeta destino:\\n"
+                                "No se puede renombrar porque ya existe la carpeta destino:\n"
                                 f"{new_path}"
                             )
                         root_renames.append((old_path, new_path))
@@ -407,7 +407,7 @@ class YearStructureEditorService:
                     if source_exists and old_child != new_child:
                         if target_exists and target_before != source_before:
                             raise YearStructureEditorError(
-                                "No se puede renombrar porque ya existe la subcarpeta destino:\\n"
+                                "No se puede renombrar porque ya existe la subcarpeta destino:\n"
                                 f"{target_before}"
                             )
                         child_renames.append(
