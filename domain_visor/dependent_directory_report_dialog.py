@@ -55,6 +55,7 @@ class _DependentDirectoryReportWorker(QThread):
                 self.base_path,
                 get_structure_file(REPORT_FILENAME),
                 get_structure_file(REPORT_SETTINGS_FILENAME),
+                structure_definition_path=get_structure_file("folders.json"),
             )
             preferences = service.save_exclusion_preferences(
                 self.excluded_directory_names,
@@ -89,6 +90,7 @@ class DependentDirectoryReportDialog(QDialog):
             self.base_path,
             get_structure_file(REPORT_FILENAME),
             get_structure_file(REPORT_SETTINGS_FILENAME),
+            structure_definition_path=get_structure_file("folders.json"),
         )
         try:
             self._preferences = self.service.load_exclusion_preferences()
