@@ -1,4 +1,4 @@
-"""Rebuild Structure/folders.json from the real directory trees of all years."""
+"""Synchronize top-level year categories while preserving manual folder templates."""
 from __future__ import annotations
 
 import json
@@ -27,10 +27,11 @@ class YearStructureSyncError(RuntimeError):
 
 
 class YearStructureSyncService:
-    """Build folders.json from the union of all valid year directories.
+    """Build folders.json categories from all valid year directories.
 
-    Categories and subfolders are retained while they exist in at least one
-    year. Numeric year prefixes are removed, and dynamic season names collapse
+    Only the immediate child directories of each year are inspected. Existing
+    subfolder lists remain user-maintained templates and are never scanned.
+    Numeric prefixes are removed, and dynamic season category names collapse
     to the stable folders.json key `___[]`.
     """
 
