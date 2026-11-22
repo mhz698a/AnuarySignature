@@ -298,15 +298,84 @@ class CharacterIconItem(QGraphicsItem):
             self.update()
 
             if view:
-                
                 main_window = view.window()
                 if callable(getattr(main_window, "trigger_render", None)):
                     main_window.trigger_render()
-                    show_status_message = getattr(main_window, "show_status_message", None)
+
+                if mgr is not None:
+                    from domain_visor.character_credential_backup_dialog import (
+                        SingleCharacterBackupWorker,
+                    )
+
+                    workers = getattr(
+                        main_window,
+                        "_character_backup_workers",
+                        None,
+                    )
+                    if workers is None:
+                        workers = set()
+                        main_window._character_backup_workers = workers
+
+                    worker = SingleCharacterBackupWorker(
+                        mgr.base_path,
+                        new_data,
+                        main_window,
+                    )
+                    workers.add(worker)
+
+                    monitor = getattr(
+                        main_window,
+                        "structure_status_monitor",
+                        None,
+                    )
+                    if monitor is not None:
+                        monitor.pause()
+
+                    show_status_message = getattr(
+                        main_window,
+                        "show_status_message",
+                        None,
+                    )
                     if callable(show_status_message):
                         show_status_message(
-                            "Credencial actualizada correctamente.",
-                            3000
+                            "Credencial guardada localmente. Respaldando JSON e imágenes en Structure…",
+                            5000,
+                        )
+
+                    from domain_visor.character_credential_backup_dialog import (
+                        SingleCharacterBackupUiBridge,
+                    )
+
+                    bridges = getattr(
+                        main_window,
+                        "_character_backup_bridges",
+                        None,
+                    )
+                    if bridges is None:
+                        bridges = set()
+                        main_window._character_backup_bridges = bridges
+
+                    bridge = SingleCharacterBackupUiBridge(
+                        main_window,
+                        worker,
+                        main_window,
+                    )
+                    bridges.add(bridge)
+                    worker.completed.connect(bridge.on_completed)
+                    worker.failed.connect(bridge.on_failed)
+                    worker.finished.connect(bridge.on_finished)
+                    worker.start()
+                else:
+                    show_status_message = getattr(
+                        main_window,
+                        "show_status_message",
+                        None,
+                    )
+                    if callable(show_status_message):
+                        show_status_message(
+                            "Credencial guardada localmente, pero no se encontró "
+                            "el gestor de personajes para respaldarla.",
+                            10000,
                         )
 
     def boundingRect(self) -> QRectF:

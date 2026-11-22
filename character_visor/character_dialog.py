@@ -251,7 +251,7 @@ class CharacterEditDialog(QDialog):
 
         # 8. Color Group
         self.color_options = [
-            "", "rojo", "azul", "verde", "amarillo", "naranja", "morado",
+            "", "rojo", "azul", "verde", "amarillo", "dorado", "naranja", "morado",
             "rosa", "blanco", "negro", "gris", "marrón", "turquesa", "cian",
             "magenta", "arcoiris"
         ]

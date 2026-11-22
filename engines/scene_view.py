@@ -17,6 +17,7 @@ from const import APP_NAME
 from domain_visor.theme import Theme
 from domain_visor.dependent_path_dialog import DependentPathDialog
 from engines.runtime_config import DEFAULT_DEPENDENT_PATH, get_dependent_path
+from engines.structure_paths import get_structure_dir
 from engines.render_engine import RenderEngine
 from character_visor.json_editor import JSONEditorPanel
 from character_visor.character_manager import CharacterManager
@@ -24,6 +25,7 @@ from domain_visor.progress_dialog import ProgressDialog
 from year_visor.year_item import YearItem
 from domain_visor.about_dialog import AboutDialog
 from domain_visor.verbose_resolve_dialog import VerboseResolveDialog
+from domain_visor.structure_status_monitor import StructureStatusMonitor
 from character_visor.character_row_item import IMAGE_CACHE, PIXMAP_CACHE
 
 class ZoomableGraphicsView(QGraphicsView):
@@ -271,12 +273,35 @@ class VasculumApp(QMainWindow):
                 border: none;
             }
         """)
+        
+
+        self.structure_status_label = QLabel("STRUCTURE · …", self)
+        self.structure_status_label.setMinimumWidth(150)
+        self.structure_status_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.structure_status_label.setStyleSheet(
+            "color: #bdbdbd; padding-left: 10px; padding-right: 8px;"
+        )
+        self.structure_status_label.setToolTip(
+            "Comprobando el estado local y remoto del repositorio privado Structure."
+        )
+        status_bar.addPermanentWidget(self.structure_status_label)
+
+        self.structure_status_monitor = StructureStatusMonitor(parent=self)
+        self.structure_status_monitor.status_changed.connect(
+            self._update_structure_status_indicator
+        )
+        self._structure_sync_dialog_waiting = False
+        self.structure_status_monitor.start()
+        
         zoom_label = QLabel("Zoom", self)
         zoom_label.setStyleSheet("color: #bdbdbd; padding-left: 6px;")
         self.zoom_percentage_label.setStyleSheet("color: #ffffff; padding-right: 8px;")
         status_bar.addPermanentWidget(zoom_label)
         status_bar.addPermanentWidget(self.zoom_slider)
         status_bar.addPermanentWidget(self.zoom_percentage_label)
+
         status_bar.showMessage("Visor de dominios listo", 3000)
 
         # 4. Crear la escena y asignarla al View
@@ -365,6 +390,12 @@ class VasculumApp(QMainWindow):
         self.manage_note_classifications_action.triggered.connect(
             lambda *_: self.open_note_classifications_manager()
         )
+        self.structure_sync_action = settings_menu.addAction(
+            "Sincronizar Structure con GitHub"
+        )
+        self.structure_sync_action.triggered.connect(
+            lambda *_: self.open_structure_sync_dialog()
+        )
         settings_menu.addSeparator()
 
         self.dependent_path_action = settings_menu.addAction(
@@ -390,6 +421,30 @@ class VasculumApp(QMainWindow):
         self.verbose_resolve_action.triggered.connect(
             self.manage_verbose_resolutions
         )
+        self.dependent_directory_report_action = tools_menu.addAction(
+            "Generar/actualizar reporte de la unidad dependiente"
+        )
+        self.dependent_directory_report_action.triggered.connect(
+            lambda *_: self.generate_dependent_directory_report()
+        )
+        self.character_backup_action = tools_menu.addAction(
+            "Respaldar credenciales de personajes en Structure"
+        )
+        self.character_backup_action.triggered.connect(
+            lambda *_: self.open_character_credential_backup()
+        )
+        self.structure_orders_action = tools_menu.addAction(
+            "Revisar órdenes de GitHub"
+        )
+        self.structure_orders_action.triggered.connect(
+            lambda *_: self.open_structure_orders_dialog()
+        )
+        self.character_cache_sync_action = tools_menu.addAction(
+            "Aplicar cambios de caché a credenciales locales"
+        )
+        self.character_cache_sync_action.triggered.connect(
+            lambda *_: self.open_character_cache_sync_dialog()
+        )
 
         help_menu = self.menu_bar.addMenu("Ayuda")
         self.about_action = help_menu.addAction("Acerca de...")
@@ -413,6 +468,21 @@ class VasculumApp(QMainWindow):
             return
         self._startup_complete = True
         self.trigger_render()
+        try:
+            from engines.character_cache_sync import CharacterCacheSyncService
+
+            cache_sync = CharacterCacheSyncService(
+                dependent_path=self.dependent_path,
+                character_manager=self.character_manager,
+            )
+            if cache_sync.has_pending_snapshot():
+                self.show_status_message(
+                    "Hay cambios de caché Structure pendientes de aplicar a las "
+                    "credenciales locales. Usa Herramientas → Aplicar cambios de caché.",
+                    9000,
+                )
+        except Exception:
+            pass
         # El visor permanece oculto; el usuario puede mostrarlo desde la bandeja.
 
     def configure_dependent_path(self):
@@ -442,9 +512,137 @@ class VasculumApp(QMainWindow):
             f"Carpeta dependiente guardada: {path}", 5000
         )
 
+    def open_character_credential_backup(self):
+        """Back up all on-disk character credentials to the local Structure checkout."""
+        from domain_visor.character_credential_backup_dialog import (
+            CharacterCredentialBackupDialog,
+        )
+
+        self.structure_status_monitor.pause()
+        try:
+            dialog = CharacterCredentialBackupDialog(
+                self.dependent_path,
+                self.character_manager._cache,
+                self,
+            )
+            dialog.exec()
+            if dialog.backup_result is not None:
+                result = dialog.backup_result
+                self.show_status_message(
+                    f"Respaldo Structure: {result.get('backed_up', 0)} personajes, "
+                    f"{result.get('failed', 0)} errores. Revisa PUSH para publicarlo.",
+                    7000,
+                )
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
+
+    def open_structure_orders_dialog(self):
+        """Review and explicitly approve pending GitHub orders for the dependent unit."""
+        from domain_visor.structure_orders_dialog import StructureOrdersDialog
+
+        self.structure_status_monitor.pause()
+        try:
+            dialog = StructureOrdersDialog(
+                dependent_path=self.dependent_path,
+                character_manager=self.character_manager,
+                parent=self,
+            )
+            dialog.exec()
+            if dialog.orders_applied:
+                self.character_manager.load_cache_file()
+                self.refresh_data()
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
+
+    def open_character_cache_sync_dialog(
+        self,
+        refresh_after: bool = True,
+        capture_current: bool = False,
+    ):
+        """Review Structure cache differences and optionally apply selected local fields."""
+        from domain_visor.character_cache_sync_dialog import CharacterCacheSyncDialog
+        from engines.character_cache_sync import CharacterCacheSyncService
+
+        try:
+            service = CharacterCacheSyncService(
+                dependent_path=self.dependent_path,
+                character_manager=self.character_manager,
+            )
+            if capture_current:
+                snapshot = service.capture_pending_snapshot()
+            else:
+                service.ensure_pending_snapshot()
+                snapshot = None
+
+            dialog = CharacterCacheSyncDialog(
+                service,
+                self,
+                close_when_empty=capture_current,
+            )
+            dialog.exec()
+            if dialog.applied:
+                result = dialog.apply_result or {}
+                remaining = result.get("remaining_changes")
+                remaining_text = (
+                    str(remaining) if remaining is not None else "sin verificar"
+                )
+                self.show_status_message(
+                    f"Credenciales locales actualizadas: "
+                    f"{result.get('applied_characters', 0)} personajes, "
+                    f"{result.get('applied_fields', 0)} campos. "
+                    f"Cambios pendientes: {remaining_text}. "
+                    "Se creó un respaldo previo en AppData.",
+                    7000,
+                )
+                if refresh_after:
+                    self.refresh_data()
+            elif snapshot and service.has_pending_snapshot() and not dialog.discarded:
+                self.show_status_message(
+                    f"Snapshot de caché preservado para revisión: "
+                    f"{snapshot.get('character_count', 0)} personajes.",
+                    6000,
+                )
+            return dialog.applied
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Sincronización de credenciales",
+                f"No se pudo preparar la comparación de caché:\n{error}",
+            )
+            return None if capture_current else False
+
+    def generate_dependent_directory_report(self):
+        """Generate the directory and character-credential report for the configured unit."""
+        from domain_visor.dependent_directory_report_dialog import (
+            DependentDirectoryReportDialog,
+        )
+
+        dialog = DependentDirectoryReportDialog(self.dependent_path, self)
+        dialog.exec()
+
+        if dialog.preferences_saved:
+            self.structure_status_monitor.refresh_now()
+
+        if dialog.report_generated:
+            result = dialog.report_result or {}
+            self.show_status_message(
+                "Reporte de unidad dependiente actualizado: "
+                f"{result.get('directory_count', 0)} directorios, "
+                f"{result.get('excluded_directory_count', 0)} carpetas excluidas, "
+                f"{result.get('character_count', 0)} personajes y "
+                f"{result.get('credential_found_count', 0)} credenciales localizadas.",
+                7000,
+            )
+        elif dialog.preferences_saved:
+            self.show_status_message(
+                "Las preferencias de exclusión se guardaron en Structure. "
+                "El reporte anterior se conserva porque no se completó la generación.",
+                8000,
+            )
+
     def manage_verbose_resolutions(self):
         """Abre la tabla editable para las resoluciones verbosas."""
-        structure_dir = Path(__file__).resolve().parents[1] / "__structure__"
+        structure_dir = get_structure_dir()
         architecture_path = structure_dir / "verbose_architecture.json"
         business_path = structure_dir / "verbose_business.json"
 
@@ -704,6 +902,78 @@ class VasculumApp(QMainWindow):
         if service is not None:
             service.open_classifications_manager(parent=self)
 
+    def _update_structure_status_indicator(
+        self,
+        label: str,
+        tooltip: str,
+        color: str,
+    ):
+        """Update the compact GitHub status indicator beside the zoom controls."""
+        self.structure_status_label.setText(label)
+        self.structure_status_label.setToolTip(tooltip)
+        self.structure_status_label.setStyleSheet(
+            f"color: {color}; padding-left: 10px; padding-right: 8px; "
+            "font-weight: bold;"
+        )
+
+    def open_structure_sync_dialog(self):
+        """Pause status polling before opening the interactive Git operations."""
+        self.structure_status_monitor.pause()
+        if self.structure_status_monitor.is_busy():
+            if not self._structure_sync_dialog_waiting:
+                self._structure_sync_dialog_waiting = True
+                self.structure_status_monitor.idle.connect(
+                    self._open_structure_sync_dialog_when_idle
+                )
+            self.show_status_message(
+                "Esperando a que termine la comprobación de Structure…",
+                3000,
+            )
+            return
+
+        self._open_structure_sync_dialog_when_idle()
+
+    def _open_structure_sync_dialog_when_idle(self):
+        """Open the sync dialog only after the status fetch releases Git."""
+        if self._structure_sync_dialog_waiting:
+            try:
+                self.structure_status_monitor.idle.disconnect(
+                    self._open_structure_sync_dialog_when_idle
+                )
+            except (TypeError, RuntimeError):
+                pass
+            self._structure_sync_dialog_waiting = False
+
+        from domain_visor.structure_sync_dialog import StructureSyncDialog
+
+        try:
+            dialog = StructureSyncDialog(self)
+            dialog.exec()
+            if dialog.structure_changed:
+                self._reload_structure_after_sync()
+        finally:
+            self.structure_status_monitor.resume(refresh_immediately=True)
+
+    def _reload_structure_after_sync(self):
+        """Capture remote character metadata before a scan can rewrite the local cache."""
+        self.load_initial_json()
+        preserved = self.open_character_cache_sync_dialog(
+            refresh_after=False,
+            capture_current=True,
+        )
+        if preserved is None:
+            self.show_status_message(
+                "La caché remota no pudo preservarse. Se canceló la recarga para "
+                "evitar sobrescribir cambios que aún no han sido revisados.",
+                9000,
+            )
+            return
+        self.refresh_data()
+        self.show_status_message(
+            "Los datos de Structure fueron actualizados. Recargando el visor…",
+            5000,
+        )
+
     def restore_editor_visible_state(self):
         editor_visible_setting = self.settings.value("json_editor_visible")
         if editor_visible_setting is None:
@@ -828,6 +1098,25 @@ class VasculumApp(QMainWindow):
         self.progress_dialog.finished.connect(self.trigger_render)
         self.progress_dialog.start_loading()
 
+    def _finish_close_after_character_backups(self):
+        """Resume shutdown only after all automatic character backup workers finish."""
+        workers = getattr(self, "_character_backup_workers", set())
+        if any(worker.isRunning() for worker in workers):
+            return
+        self._close_waiting_for_character_backups = False
+        self.close()
+
+    def _finish_close_after_structure_status(self):
+        """Resume shutdown after the background Structure status check finishes."""
+        try:
+            self.structure_status_monitor.idle.disconnect(
+                self._finish_close_after_structure_status
+            )
+        except (TypeError, RuntimeError):
+            pass
+        self._close_waiting_for_structure_status = False
+        self.close()
+
     def closeEvent(self, event):
         if not self._allow_application_exit:
             dialog = QMessageBox(self)
@@ -878,6 +1167,35 @@ class VasculumApp(QMainWindow):
 
         self._closing_application = True
         self.settings.setValue("splitter_state", self.splitter.saveState())
+
+        if hasattr(self, "structure_status_monitor"):
+            self.structure_status_monitor.stop()
+            worker = self.structure_status_monitor._worker
+            if worker is not None and worker.isRunning():
+                if not getattr(self, "_close_waiting_for_structure_status", False):
+                    self._close_waiting_for_structure_status = True
+                    self.setEnabled(False)
+                    self.structure_status_monitor.idle.connect(
+                        self._finish_close_after_structure_status
+                    )
+                event.ignore()
+                return
+
+        active_backup_workers = [
+            worker
+            for worker in getattr(self, "_character_backup_workers", set())
+            if worker.isRunning()
+        ]
+        if active_backup_workers:
+            if not getattr(self, "_close_waiting_for_character_backups", False):
+                self._close_waiting_for_character_backups = True
+                self.setEnabled(False)
+                for worker in active_backup_workers:
+                    worker.finished.connect(
+                        self._finish_close_after_character_backups
+                    )
+            event.ignore()
+            return
 
         if hasattr(self, "progress_dialog") and self.progress_dialog:
             try:

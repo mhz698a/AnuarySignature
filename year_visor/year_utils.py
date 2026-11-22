@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from engines.structure_paths import get_structure_file
+
 
 def calculate_id_package_default(year: int, infra_path: Path = None) -> str:
     """
@@ -16,7 +18,7 @@ def calculate_id_package_default(year: int, infra_path: Path = None) -> str:
     - "00A" al ser default variant key (se pone por defecto)
     """
     if infra_path is None:
-        infra_path = Path("__structure__/infrastructure.json")
+        infra_path = get_structure_file("infrastructure.json")
     if not infra_path.exists():
         return ""
     try:

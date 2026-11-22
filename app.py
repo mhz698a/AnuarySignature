@@ -14,6 +14,11 @@ from engines.instance_mutex import SingleInstanceMutex
 from engines.runtime_config import application_settings, get_dependent_path # type: ignore
 from engines.scene_view import VasculumApp
 from engines.system_tray import SystemTrayController
+from engines.structure_paths import (
+    STRUCTURE_REPOSITORY_URL,
+    get_missing_structure_files,
+    get_structure_repo_root,
+)
 from signwrite.service import KnowledgeEtudeService
 from domain_visor.theme import Theme
 
@@ -64,6 +69,21 @@ def main():
                 f"{dependent_path}\\n\\n"
                 "El programa se cerrará. Comprueba la unidad o configura una "
                 "carpeta disponible en Ajustes.",
+            )
+            return 1
+
+        # Los JSON de infraestructura ahora proceden del checkout privado local.
+        missing_structure = get_missing_structure_files()
+        if missing_structure:
+            structure_root = get_structure_repo_root()
+            QMessageBox.warning(
+                None,
+                "Repositorio Structure no disponible",
+                "No se encontraron todos los datos de AnuarySignature.\n\n"
+                f"Directorio esperado:\n{structure_root}\n\n"
+                f"Archivos faltantes: {', '.join(missing_structure)}\n\n"
+                "Clona el repositorio privado con GitHub Desktop o ejecuta:\n"
+                f'git clone {STRUCTURE_REPOSITORY_URL} "{structure_root}"',
             )
             return 1
 

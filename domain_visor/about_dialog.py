@@ -7,8 +7,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from domain_visor.theme import Theme
+from engines.structure_paths import get_structure_file
 
-DEFAULT_ABOUT_IT_PATH = Path("__structure__/about_it.json")
+DEFAULT_ABOUT_IT_PATH = get_structure_file("about_it.json")
 
 def load_about_data(filepath=None) -> dict:
     """
