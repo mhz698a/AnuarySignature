@@ -396,6 +396,12 @@ class VasculumApp(QMainWindow):
         self.structure_sync_action.triggered.connect(
             lambda *_: self.open_structure_sync_dialog()
         )
+        self.year_structure_sync_action = settings_menu.addAction(
+            "Sincronizar folders.json con estructura anual"
+        )
+        self.year_structure_sync_action.triggered.connect(
+            lambda *_: self.open_year_structure_sync_dialog()
+        )
         settings_menu.addSeparator()
 
         self.dependent_path_action = settings_menu.addAction(
@@ -915,6 +921,25 @@ class VasculumApp(QMainWindow):
             f"color: {color}; padding-left: 10px; padding-right: 8px; "
             "font-weight: bold;"
         )
+
+    def open_year_structure_sync_dialog(self):
+        """Rebuild folders.json from the current physical year directories."""
+        from domain_visor.year_structure_sync_dialog import YearStructureSyncDialog
+        from engines.structure_paths import get_structure_file
+
+        dialog = YearStructureSyncDialog(
+            dependent_root=self.dependent_path,
+            folders_json_path=get_structure_file("folders.json"),
+            parent=self,
+        )
+        dialog.exec()
+        result = dialog.sync_result
+        if result and result.get("written"):
+            self.show_status_message(
+                "folders.json se sincronizó con la estructura física de los años. "
+                "El cambio local está pendiente de subir a Structure con GitHub.",
+                8000,
+            )
 
     def open_structure_sync_dialog(self):
         """Pause status polling before opening the interactive Git operations."""
