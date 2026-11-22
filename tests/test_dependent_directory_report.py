@@ -839,3 +839,29 @@ def test_report_uses_minimal_creation_fallback_when_no_template_exists(tmp_path)
         "identity",
     }
 
+def test_fallback_report_prefers_previous_year_before_maximum_existing_year(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    for folder_name in ("22. album", "22. identity"):
+        (dependent_root / "2024" / folder_name).mkdir(parents=True)
+    for folder_name in ("25. album", "25. music"):
+        (dependent_root / "2027" / folder_name).mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(
+        dependent_root,
+        report_path,
+        current_year=2025,
+    )
+    options = service.list_directory_category_options()
+
+    assert options["structure_source"] == "fallback_template"
+    assert options["template_year"] == "2024"
+    assert {item["key"] for item in options["categories"]} == {
+        "album",
+        "identity",
+    }
+    assert options["mismatches"][0]["year"] == "2027"
+
