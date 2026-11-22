@@ -212,27 +212,6 @@ review field differences, and apply selected changes with a pre-change backup.
 See [docs/STRUCTURE_BRANCH_AND_CREDENTIAL_SYNC.md](docs/STRUCTURE_BRANCH_AND_CREDENTIAL_SYNC.md)
 for the branch workflow, snapshot handling, safety checks and backup locations.
 
-## Rebuild folders.json from year directories
-
-Use **Ajustes → Sincronizar folders.json con estructura anual** to synchronize
-only the top-level category directories found across all four-digit years.
-
-Numeric year prefixes are normalized away, and dynamic season directory names
-map to the stable `___[]` category. A category is removed from `folders.json`
-only when it no longer exists in any year.
-
-The arrays of subfolders are manual creation templates. The synchronization
-does not inspect physical child directories, add or remove template entries, or
-infer their contents. Existing arrays are preserved exactly as defined by the
-user. A newly discovered top-level category is added with an empty array.
-
-The dialog previews the proposed category additions and removals before asking
-for confirmation. The previous file is backed up under
-`%LOCALAPPDATA%/AnuarySignature/Backups/Structure/year_structure_sync`.
-The operation does not modify the physical year directories or push changes to
-GitHub. Publish the local Structure change later with
-**Sincronizar Structure con GitHub → Subir cambios**.
-
 ## Installation
 
 1. Clone the repository:
