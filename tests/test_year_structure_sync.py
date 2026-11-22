@@ -41,6 +41,7 @@ def test_preview_syncs_only_top_level_categories_and_preserves_manual_templates(
             "music": ["physical_music"],
             "___[Season 2024]": ["physical_season_folder"],
             "identity": [],
+            "knowledge": [],
             "resources.local.images": [],
         },
     )
@@ -53,6 +54,7 @@ def test_preview_syncs_only_top_level_categories_and_preserves_manual_templates(
             "music": ["another_physical_music_folder"],
             "___[Season 2025]": ["another_physical_season_folder"],
             "identity": [],
+            "overworld": [],
             "new.category": ["must_not_be_imported"],
         },
     )
