@@ -96,7 +96,7 @@ hardcoded or first-alphabetical-year definition.
 Numeric prefixes are normalized, so entries such as `22. album` and
 `23. album` become one `album` category in the exclusion list. The list shows
 the category name without the numeric prefix because that prefix is derived
-from each year as `max(0, year - 2003)`. Dynamic season names such as
+from each year as `max(0, year - 2003)`, formatted with two digits. Dynamic season names such as
 `22. ___[Season 2025]` and `23. ___[Season 2026]` become one
 `___[...]` category. Each category appears only once; checking it excludes
 matching folders and their subtrees in every year. `resources.local.personal`
