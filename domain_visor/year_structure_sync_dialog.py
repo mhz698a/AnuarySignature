@@ -302,7 +302,7 @@ class YearStructureSyncDialog(QDialog):
                 ),
             ]
         )
-        self.preview_edit.setPlainText("\\n".join(diff_lines))
+        self.preview_edit.setPlainText("\n".join(diff_lines))
 
     def _confirm_and_apply(self) -> None:
         result = self._preview_result
