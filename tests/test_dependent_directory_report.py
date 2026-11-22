@@ -468,7 +468,11 @@ def test_directory_structure_mismatch_blocks_report_and_preserves_old_file(tmp_p
     report_path.parent.mkdir(parents=True)
     original = '{"previous": true}\n'
     report_path.write_text(original, encoding="utf-8")
-    service = DependentDirectoryReportService(dependent_root, report_path)
+    service = DependentDirectoryReportService(
+        dependent_root,
+        report_path,
+        current_year=2026,
+    )
 
     options = service.list_directory_category_options()
     assert options["structure_consistent"] is False
