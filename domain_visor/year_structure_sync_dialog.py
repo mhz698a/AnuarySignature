@@ -171,6 +171,8 @@ class YearStructureSyncDialog(QDialog):
         if self._worker is not None and self._worker.isRunning():
             return
         self._operation = operation
+        if operation == "preview":
+            self.sync_result = None
         self._set_busy(True)
         self.status_label.setText(
             "Analizando todos los años…"
@@ -192,6 +194,9 @@ class YearStructureSyncDialog(QDialog):
             not busy
             and self._preview_result is not None
             and bool(self._preview_result.get("changed"))
+            and not bool(
+                self.sync_result and self.sync_result.get("written")
+            )
         )
 
     def _on_worker_completed(self, result: object) -> None:
@@ -304,6 +309,11 @@ class YearStructureSyncDialog(QDialog):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._start_worker("sync")
+
+    def reject(self) -> None:
+        if self._worker is not None and self._worker.isRunning():
+            return
+        super().reject()
 
     def closeEvent(self, event) -> None:
         if self._worker is not None and self._worker.isRunning():
