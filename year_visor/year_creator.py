@@ -15,6 +15,7 @@ from engines.year_structure import (
     clean_fallback_template_folder_name,
     find_fallback_template_year,
     load_folders_json,
+    is_real_directory,
 )
 
 class SeasonNameDialog(QDialog):
@@ -152,7 +153,7 @@ def replicate_structure_from_fallback(template_year_dir: Path, target_year_dir: 
     target_year_dir.mkdir(parents=True, exist_ok=True)
 
     for item in template_year_dir.iterdir():
-        if item.is_dir():
+        if is_real_directory(item):
             clean_name = clean_fallback_template_folder_name(
                 item.name,
                 season_name,
@@ -164,7 +165,7 @@ def replicate_structure_from_fallback(template_year_dir: Path, target_year_dir: 
 
             # Replicar subcarpetas
             for child in item.iterdir():
-                if child.is_dir():
+                if is_real_directory(child):
                     clean_child = clean_fallback_template_folder_name(
                         child.name,
                         season_name,
