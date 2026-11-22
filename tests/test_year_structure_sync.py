@@ -144,6 +144,21 @@ def test_preview_refuses_to_overwrite_when_no_year_directories_exist(tmp_path):
     assert folders_json.read_text(encoding="utf-8") == original
 
 
+def test_preview_refuses_to_replace_json_when_years_have_no_categories(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    (dependent_root / "2025").mkdir(parents=True)
+    folders_json = tmp_path / "folders.json"
+    original = '{"album": []}'
+    folders_json.write_text(original, encoding="utf-8")
+
+    service = YearStructureSyncService(dependent_root, folders_json)
+
+    with pytest.raises(YearStructureSyncError, match="No se detectaron carpetas"):
+        service.synchronize()
+
+    assert folders_json.read_text(encoding="utf-8") == original
+
+
 def test_preview_rejects_invalid_existing_json_without_replacing_it(tmp_path):
     dependent_root = tmp_path / "_Internal"
     _make_year(dependent_root, 2025, "22", {"album": []})
