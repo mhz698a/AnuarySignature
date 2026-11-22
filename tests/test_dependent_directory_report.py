@@ -451,7 +451,6 @@ def test_directory_category_options_are_aggregated_across_years(tmp_path):
         "resources.local.personal"
     )
     assert by_key["resources.local.personal"]["excluded"] is True
-    assert by_key["___[]"]["name"] == "___[...]"
     assert by_key["resources.local.personal"]["years_present"] == 2
     assert by_key["album"]["name"] == "album"
     assert service._directory_category_label("22. album") == "album"
@@ -753,6 +752,7 @@ def test_report_uses_folders_json_as_authoritative_year_creation_source(tmp_path
     }
     assert by_key["___[]"]["name"] == "xx. ___[...]"
     assert by_key["resources.local.personal"]["excluded"] is True
+    assert by_key["___[]"]["name"] == "___[...]"
 
     result = service.generate_or_update()
     payload = json.loads(report_path.read_text(encoding="utf-8"))
