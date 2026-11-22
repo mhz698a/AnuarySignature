@@ -448,11 +448,17 @@ def test_directory_category_options_are_aggregated_across_years(tmp_path):
         "identity",
     }
     assert by_key["resources.local.personal"]["name"] == (
-        "xx. resources.local.personal"
+        "resources.local.personal"
     )
     assert by_key["resources.local.personal"]["excluded"] is True
+    assert by_key["___[]"]["name"] == "___[...]"
     assert by_key["resources.local.personal"]["years_present"] == 2
-    assert by_key["album"]["name"] == "xx. album"
+    assert by_key["album"]["name"] == "album"
+    assert service._directory_category_label("22. album") == "album"
+    assert service._directory_category_label("23. album") == "album"
+    assert service._directory_category_label(
+        "22. ___[Season 2025]"
+    ) == "___[...]"
 
 
 def test_directory_structure_mismatch_blocks_report_and_preserves_old_file(tmp_path):
