@@ -16,7 +16,6 @@ from engines.year_structure import (
     find_fallback_template_year,
     load_folders_json,
     is_real_directory,
-    normalize_directory_category,
     MINIMAL_FALLBACK_CATEGORIES,
 )
 
@@ -191,12 +190,7 @@ def create_structure_from_json(json_data: dict, target_year_dir: Path, new_prefi
         main_dir_path.mkdir(parents=True, exist_ok=True)
 
         for sub_name in subfolders:
-            clean_sub_name = (
-                f"___[{season_name}]"
-                if normalize_directory_category(sub_name) == "___[]"
-                else sub_name
-            )
-            sub_dir_name = f"{new_prefix}. {clean_sub_name}"
+            sub_dir_name = f"{new_prefix}. {sub_name}"
             (main_dir_path / sub_dir_name).mkdir(parents=True, exist_ok=True)
 
 
