@@ -223,6 +223,11 @@ class YearStructureSyncService:
         years = self._year_directories()
         current, _raw = self._read_current_data()
         discovered = self._build_from_years(years)
+        if not discovered:
+            raise YearStructureSyncError(
+                "No se detectaron carpetas de estructura dentro de los años. "
+                "folders.json no se modificó."
+            )
 
         folders_data: dict[str, list[str]] = {}
         added_categories: list[str] = []
