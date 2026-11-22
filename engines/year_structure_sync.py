@@ -118,7 +118,15 @@ class YearStructureSyncService:
             raise YearStructureSyncError(
                 "folders.json debe contener un objeto JSON. No se modificó."
             )
+        normalized_categories: set[str] = set()
         for category, subfolders in payload.items():
+            normalized_key = normalize_directory_category(category)
+            if normalized_key in normalized_categories:
+                raise YearStructureSyncError(
+                    "folders.json contiene categorías duplicadas después de "
+                    "normalizar sus prefijos. No se modificó."
+                )
+            normalized_categories.add(normalized_key)
             if (
                 not isinstance(category, str)
                 or not category.strip()
@@ -157,8 +165,13 @@ class YearStructureSyncService:
     def _build_from_years(
         self,
         years: list[Path],
-    ) -> dict[str, dict[str, Any]]:
-        discovered: dict[str, dict[str, Any]] = {}
+    ) -> dict[str, str]:
+        """Discover only top-level category directories in every year.
+
+        The contents of category directories are deliberately not inspected:
+        their subfolder lists are manually maintained templates in folders.json.
+        """
+        discovered: dict[str, str] = {}
         for year_dir in years:
             try:
                 top_level = sorted(
@@ -177,35 +190,10 @@ class YearStructureSyncService:
                 category_key = normalize_directory_category(category_dir.name)
                 if not category_key:
                     continue
-                category = discovered.setdefault(
+                discovered.setdefault(
                     category_key,
-                    {
-                        "name": self._display_name(category_dir.name),
-                        "subfolders": {},
-                    },
+                    self._display_name(category_dir.name),
                 )
-                try:
-                    children = sorted(
-                        (
-                            item for item in category_dir.iterdir()
-                            if is_real_directory(item)
-                        ),
-                        key=lambda item: item.name.casefold(),
-                    )
-                except OSError as error:
-                    raise YearStructureSyncError(
-                        "No se pudo leer la categoría "
-                        f"'{category_dir.name}' del año {year_dir.name}: {error}"
-                    ) from error
-
-                for child in children:
-                    child_key = normalize_directory_category(child.name)
-                    if not child_key:
-                        continue
-                    category["subfolders"].setdefault(
-                        child_key,
-                        self._display_name(child.name),
-                    )
         return discovered
 
     @staticmethod
@@ -219,7 +207,7 @@ class YearStructureSyncService:
         return None, []
 
     def preview(self) -> dict[str, Any]:
-        """Return the proposed JSON and a comparison without changing files."""
+        """Preview top-level category changes while preserving manual templates."""
         years = self._year_directories()
         current, _raw = self._read_current_data()
         discovered = self._build_from_years(years)
@@ -231,54 +219,26 @@ class YearStructureSyncService:
 
         folders_data: dict[str, list[str]] = {}
         added_categories: list[str] = []
-        added_subfolders: list[dict[str, str]] = []
-        removed_subfolders: list[dict[str, str]] = []
 
-        discovered_names = {
-            key: value["name"] for key, value in discovered.items()
-        }
         ordered_category_keys = self._ordered_names(
-            discovered_names,
+            discovered,
             list(current),
         )
-
         for category_key in ordered_category_keys:
-            category_data = discovered[category_key]
             existing_name, existing_subfolders = self._existing_category(
                 current,
                 category_key,
             )
-            category_name = category_data["name"]
             if existing_name is None:
+                category_name = discovered[category_key]
                 added_categories.append(category_name)
-
-            child_names = category_data["subfolders"]
-            ordered_child_keys = self._ordered_names(
-                child_names,
-                existing_subfolders,
-            )
-            folders_data[category_name] = [
-                child_names[key] for key in ordered_child_keys
-            ]
-
-            existing_child_keys = {
-                normalize_directory_category(name)
-                for name in existing_subfolders
-            }
-            discovered_child_keys = set(child_names)
-            for key in sorted(
-                discovered_child_keys - existing_child_keys,
-                key=lambda item: child_names[item].casefold(),
-            ):
-                added_subfolders.append(
-                    {"category": category_name, "name": child_names[key]}
-                )
-            for name in existing_subfolders:
-                key = normalize_directory_category(name)
-                if key not in discovered_child_keys:
-                    removed_subfolders.append(
-                        {"category": existing_name or category_name, "name": name}
-                    )
+                # New categories start with an empty template. Their child
+                # directories are never copied into folders.json.
+                folders_data[category_name] = []
+            else:
+                # Preserve the user's manually maintained subfolder template
+                # exactly as stored, even when those folders do not exist yet.
+                folders_data[existing_name] = existing_subfolders
 
         removed_categories = [
             name
@@ -293,8 +253,6 @@ class YearStructureSyncService:
             "subfolder_count": sum(len(items) for items in folders_data.values()),
             "added_categories": added_categories,
             "removed_categories": removed_categories,
-            "added_subfolders": added_subfolders,
-            "removed_subfolders": removed_subfolders,
             "changed": folders_data != current,
         }
 
