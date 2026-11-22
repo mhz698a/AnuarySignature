@@ -53,7 +53,8 @@ def find_fallback_template_year(
     existing_years = []
     if root.exists():
         for item in root.iterdir():
-            if is_real_directory(item) and item.name.isdigit():                existing_years.append(int(item.name))
+            if is_real_directory(item) and item.name.isdigit():
+                existing_years.append(int(item.name))
     return max(existing_years) if existing_years else None
 
 
@@ -105,7 +106,8 @@ def resolve_year_structure(
         try:
             categories = []
             for item in template_dir.iterdir():
-                if not is_real_directory(item):                    continue
+                if not is_real_directory(item):
+                    continue
                 clean_name = strip_numeric_directory_prefix(item.name)
                 categories.append(
                     "___[...]" if "___" in clean_name else clean_name
