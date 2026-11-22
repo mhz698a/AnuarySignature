@@ -212,6 +212,24 @@ review field differences, and apply selected changes with a pre-change backup.
 See [docs/STRUCTURE_BRANCH_AND_CREDENTIAL_SYNC.md](docs/STRUCTURE_BRANCH_AND_CREDENTIAL_SYNC.md)
 for the branch workflow, snapshot handling, safety checks and backup locations.
 
+## Rebuild folders.json from year directories
+
+Use **Ajustes → Sincronizar folders.json con estructura anual** to reconstruct the
+year-creation template from the physical directories on the dependent drive.
+
+The scan includes every valid four-digit year directory. It combines categories
+and their direct subfolders across all years, removes year-specific numeric
+prefixes, and normalizes dynamic season names to `___[]`. A category or subfolder
+is retained if it still exists in at least one year; it is removed from
+`folders.json` only when it is absent from every scanned year.
+
+The dialog previews the proposed JSON and the additions/removals before asking
+for confirmation. The previous file is backed up under
+`%LOCALAPPDATA%/AnuarySignature/Backups/Structure/year_structure_sync`.
+The operation does not rename, create or delete folders on the dependent drive
+and does not push changes to GitHub. Publish the resulting local Structure
+change later with **Sincronizar Structure con GitHub → Subir cambios**.
+
 ## Installation
 
 1. Clone the repository:
