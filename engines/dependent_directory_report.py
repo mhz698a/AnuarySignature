@@ -315,7 +315,7 @@ class DependentDirectoryReportService:
         root = self.base_path.resolve()
         if not root.exists() or not root.is_dir():
             raise DependentDirectoryReportError(
-                f"La unidad dependiente no está disponible o no es un directorio:\\n{root}"
+                f"La unidad dependiente no está disponible o no es un directorio:\n{root}"
             )
 
         current_preferences = (
