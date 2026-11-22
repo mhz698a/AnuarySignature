@@ -174,11 +174,10 @@ class DependentDirectoryReportDialog(QDialog):
         layout.addWidget(title)
 
         scope = QLabel(
-            f"Unidad dependiente:\n{self.base_path}\n\n"
-            "La lista muestra cada tipo de carpeta una sola vez. El prefijo "
-            "numérico se normaliza como 'xx.' y las exclusiones se aplican a "
-            "todos los años. Las carpetas excluidas y todo su contenido se "
-            "omiten. Los JSON de credenciales no se leen ni se copian."
+            f"Unidad dependiente: {self.base_path}\\n"
+            "La lista muestra cada categoría una sola vez, sin el prefijo. "
+            "El prefijo real de cada año se calcula como max(0, año - 2003). "
+            "Las exclusiones se aplican globalmente y omiten toda la subcarpeta."
         )
         scope.setWordWrap(True)
         layout.addWidget(scope)
@@ -203,12 +202,14 @@ class DependentDirectoryReportDialog(QDialog):
         layout.addWidget(self.directory_tree, 1)
 
         self.status_label = QLabel()
-        self.status_label.setWordWrap(True)
-        self.status_label.setMinimumHeight(66)
+        self.status_label.setWordWrap(False)
+        self.status_label.setFixedHeight(36)
+        self.status_label.setToolTip("")
         self.status_label.setStyleSheet(
             "background-color: #252525; border: 1px solid #444444; "
-            "border-radius: 4px; padding: 10px;"
+            "border-radius: 4px; padding: 4px 8px;"
         )
+        layout.addWidget(self.status_label)
         layout.addWidget(self.status_label)
 
         self.progress_bar = QProgressBar(self)
@@ -233,6 +234,11 @@ class DependentDirectoryReportDialog(QDialog):
         footer.addWidget(self.close_button)
         layout.addLayout(footer)
 
+    def _set_status(self, text: str, details: str | None = None):
+        """Keep the visible status compact; show full diagnostics in its tooltip."""
+        self.status_label.setText(text)
+        self.status_label.setToolTip(details or text)
+
     def _structure_problem_text(self) -> str:
         mismatches = self._directory_options.get("mismatches", [])
         source = self._directory_options.get("structure_source", "desconocida")
@@ -254,15 +260,15 @@ class DependentDirectoryReportDialog(QDialog):
             if item.get("extra"):
                 details.append("sobran: " + ", ".join(item["extra"]))
             lines.append(" • ".join(details))
-        return "\n".join(lines)
+        return "\\n".join(lines)
 
     def _populate_directory_categories(self):
         self.directory_tree.clear()
 
         if self._load_error is not None:
-            self.status_label.setText(
-                "No se pudo leer la estructura de años y carpetas.\n\n"
-                + self._load_error
+            self._set_status(
+                "No se pudo cargar la estructura del reporte.",
+                self._load_error,
             )
             self.generate_button.setEnabled(False)
             self.save_preferences_button.setEnabled(False)
@@ -305,26 +311,39 @@ class DependentDirectoryReportDialog(QDialog):
             self._directory_options.get("reference_folder_count", 0)
         )
         if self.structure_is_consistent:
-            self.status_label.setText(
-                f"Años detectados: {year_count}. "
-                f"Carpetas por año: {reference_count}. "
-                f"Tipos de carpeta: {len(categories)}.\\n"
-                f"Fuente de estructura: {self._directory_options.get('structure_source', 'desconocida')}"
-                + (
-                    f" (año plantilla {self._directory_options['template_year']})"
-                    if self._directory_options.get("template_year")
-                    else ""
-                )
-                + ".\\n"
-                "Cada selección se aplica de manera global a todos los años. "
-                "La generación no comienza al abrir esta ventana."
+            source = self._directory_options.get(
+                "structure_source",
+                "desconocida",
             )
+            template_year = self._directory_options.get("template_year")
+            source_label = (
+                f"{source} · plantilla {template_year}"
+                if template_year
+                else source
+            )
+            visible_status = (
+                f"{year_count} años · {reference_count} carpetas/año · "
+                f"{len(categories)} categorías · {source_label}"
+            )
+            details = (
+                f"Unidad: {self.base_path}\\n"
+                f"Fuente de estructura: {source_label}\\n"
+                "El prefijo de cada año se calcula como max(0, año - 2003). "
+                "Las categorías se muestran sin ese prefijo y las exclusiones "
+                "se aplican globalmente."
+            )
+            self._set_status(visible_status, details)
         else:
-            self.status_label.setText(
-                self._structure_problem_text()
-                + "\n\nPuedes guardar las exclusiones, pero la generación "
-                "permanecerá deshabilitada hasta corregir la estructura."
+            mismatch_count = len(
+                self._directory_options.get("mismatches", [])
             )
+            self._set_status(
+                f"Estructura no uniforme: {mismatch_count} años con diferencias.",
+                self._structure_problem_text()
+                + "\\n\\nLa generación permanece deshabilitada hasta "
+                "corregir las carpetas faltantes o adicionales.",
+            )
+
         self.generate_button.setEnabled(self.structure_is_consistent)
         self.save_preferences_button.setEnabled(True)
 
@@ -360,12 +379,13 @@ class DependentDirectoryReportDialog(QDialog):
                 included,
             )
             self.preferences_saved = True
-            self.status_label.setText(
-                "Las exclusiones globales se guardaron correctamente en Structure."
+            self._set_status(
+                "Exclusiones globales guardadas en Structure."
             )
         except Exception as error:
-            self.status_label.setText(
-                f"No se pudieron guardar las exclusiones:\n{error}"
+            self._set_status(
+                "No se pudieron guardar las exclusiones.",
+                str(error),
             )
 
     def _start_worker(self):
@@ -383,7 +403,7 @@ class DependentDirectoryReportDialog(QDialog):
         self.format_combo.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
-        self.status_label.setText(
+        self._set_status(
             "Guardando exclusiones e iniciando el recorrido de la unidad dependiente…"
         )
 
@@ -409,35 +429,40 @@ class DependentDirectoryReportDialog(QDialog):
     def _on_progress(self, completed: int, total: int, message: str):
         if total <= 0:
             self.progress_bar.setRange(0, 0)
-            self.status_label.setText(message)
+            self._set_status(message)
             return
 
         self.progress_bar.setRange(0, total)
         self.progress_bar.setValue(completed)
-        self.status_label.setText(
-            f"{message}\nProgreso: {completed} de {total} carpetas y años."
-        )
+        self._set_status(f"{message} · {completed}/{total}")
 
     def _on_completed(self, result: dict):
         self.report_result = result
         self.report_generated = True
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
-        self.status_label.setText(
-            "Reporte generado correctamente.\n\n"
-            f"Formato: {result.get('report_format', '').upper()}\n"
-            f"Años incluidos: {result.get('year_count', 0)}\n"
-            f"Directorios registrados: {result.get('directory_count', 0)}\n"
-            f"Carpetas excluidas: {result.get('excluded_directory_count', 0)}\n"
-            f"Carpetas de personajes: {result.get('character_count', 0)}\n"
-            f"Credenciales encontradas: {result.get('credential_found_count', 0)}\n"
-            f"Sin credencial: {result.get('credential_missing_count', 0)}\n"
-            f"Ubicación ambigua: {result.get('credential_ambiguous_count', 0)}\n"
+        summary = (
+            f"Reporte {result.get('report_format', '').upper()} generado · "
+            f"{result.get('year_count', 0)} años · "
+            f"{result.get('directory_count', 0)} directorios."
+        )
+        details = (
+            "Reporte generado correctamente.\\n"
+            f"Formato: {result.get('report_format', '').upper()}\\n"
+            f"Años incluidos: {result.get('year_count', 0)}\\n"
+            f"Directorios registrados: {result.get('directory_count', 0)}\\n"
+            f"Carpetas excluidas: {result.get('excluded_directory_count', 0)}\\n"
+            f"Carpetas de personajes: {result.get('character_count', 0)}\\n"
+            f"Credenciales encontradas: {result.get('credential_found_count', 0)}\\n"
+            f"Sin credencial: {result.get('credential_missing_count', 0)}\\n"
+            f"Ubicación ambigua: {result.get('credential_ambiguous_count', 0)}\\n"
             f"Con archivos adicionales: "
-            f"{result.get('credential_additional_candidates_count', 0)}\n"
-            f"Archivos de credencial detectados: {result.get('credential_file_count', 0)}\n"
+            f"{result.get('credential_additional_candidates_count', 0)}\\n"
+            f"Archivos de credencial detectados: "
+            f"{result.get('credential_file_count', 0)}\\n"
             f"Archivo: {result.get('report_path', '')}"
         )
+        self._set_status(summary, details)
         self.directory_tree.setEnabled(True)
         self.format_combo.setEnabled(True)
         self.save_preferences_button.setEnabled(True)
@@ -445,10 +470,9 @@ class DependentDirectoryReportDialog(QDialog):
         self.close_button.setEnabled(True)
 
     def _on_failed(self, message: str):
-        self.status_label.setText(
-            "No se pudo generar el reporte. El archivo anterior, si existía, "
-            "se conserva. Las exclusiones se guardaron si la configuración "
-            f"pudo escribirse.\n\n{message}"
+        self._set_status(
+            "No se pudo generar el reporte. Se conserva el archivo anterior.",
+            message,
         )
         self.directory_tree.setEnabled(True)
         self.format_combo.setEnabled(True)
