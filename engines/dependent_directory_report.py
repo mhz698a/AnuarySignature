@@ -29,7 +29,6 @@ REPORT_TEXT_FILENAME = "dependent_directory_report.txt"
 MAX_SUBFOLDER_LEVELS_AFTER_YEAR = 2
 DEFAULT_EXCLUDED_DIRECTORY_NAMES = ("resources.local.personal",)
 _YEAR_DIRECTORY_PATTERN = re.compile(r"^\d{4}$")
-_DIRECTORY_NUMBER_PREFIX_PATTERN = re.compile(r"^\s*\d+\.\s*(?P<name>.+?)\s*$")
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _CREDENTIAL_FILENAME_PATTERN = re.compile(r"^__.*\.json$", re.IGNORECASE)
 
