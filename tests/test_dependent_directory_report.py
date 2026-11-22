@@ -472,9 +472,9 @@ def test_directory_structure_mismatch_blocks_report_and_preserves_old_file(tmp_p
 
     options = service.list_directory_category_options()
     assert options["structure_consistent"] is False
-    assert options["mismatches"][0]["year"] == "2026"
+    assert options["mismatches"][0]["year"] == "2025"
 
-    with pytest.raises(DependentDirectoryReportError, match="no es uniforme"):
+    with pytest.raises(DependentDirectoryReportError, match="no coincide con la plantilla"):
         service.generate_or_update()
 
     assert report_path.read_text(encoding="utf-8") == original
@@ -690,3 +690,148 @@ def test_unsupported_report_format_is_rejected(tmp_path):
     service = DependentDirectoryReportService(dependent_root, report_path)
     with pytest.raises(DependentDirectoryReportError, match="Formato"):
         service.generate_or_update(report_format="html")
+
+def test_report_uses_folders_json_as_authoritative_year_creation_source(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    folders_json = tmp_path / "Structure" / "__structure__" / "folders.json"
+    folders_json.parent.mkdir(parents=True)
+    folders_json.write_text(
+        json.dumps(
+            {
+                "___[]": [],
+                "album": [],
+                "identity": [],
+                "resources.local.personal": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    for year, prefix, season in (
+        ("2025", "22", "Season 2025"),
+        ("2026", "23", "Season 2026"),
+    ):
+        year_dir = dependent_root / year
+        for folder_name in (
+            f"{prefix}. ___[{season}]",
+            f"{prefix}. album",
+            f"{prefix}. identity",
+            f"{prefix}. resources.local.personal",
+        ):
+            (year_dir / folder_name).mkdir(parents=True)
+
+    service = DependentDirectoryReportService(
+        dependent_root,
+        report_path,
+        structure_definition_path=folders_json,
+        current_year=2026,
+    )
+    options = service.list_directory_category_options()
+
+    assert options["structure_source"] == "folders.json"
+    assert options["template_year"] is None
+    assert options["structure_consistent"] is True
+    by_key = {item["key"]: item for item in options["categories"]}
+    assert set(by_key) == {
+        "___[]",
+        "album",
+        "identity",
+        "resources.local.personal",
+    }
+    assert by_key["___[]"]["name"] == "xx. ___[...]"
+    assert by_key["resources.local.personal"]["excluded"] is True
+
+    result = service.generate_or_update()
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert result["structure_source"] == "folders.json"
+    assert payload["structure_source"] == "folders.json"
+    assert payload["expected_folder_count"] == 4
+
+
+def test_fallback_report_uses_the_same_template_year_priority_as_creation(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    missing_folders_json = tmp_path / "Structure" / "__structure__" / (
+        "missing_folders.json"
+    )
+
+    for folder_name in ("22. album", "22. identity"):
+        (dependent_root / "2024" / folder_name).mkdir(parents=True)
+    for folder_name in ("23. album", "23. music"):
+        (dependent_root / "2025" / folder_name).mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(
+        dependent_root,
+        report_path,
+        structure_definition_path=missing_folders_json,
+        current_year=2025,
+    )
+    options = service.list_directory_category_options()
+
+    assert options["structure_source"] == "fallback_template"
+    assert options["template_year"] == "2025"
+    assert options["structure_consistent"] is False
+    assert options["mismatches"][0]["year"] == "2024"
+    assert {item["key"] for item in options["categories"]} == {
+        "album",
+        "music",
+    }
+
+
+def test_fallback_report_uses_maximum_year_when_current_and_previous_are_absent(
+    tmp_path,
+):
+    dependent_root = tmp_path / "_Internal"
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    for folder_name in ("22. album", "22. knowledge"):
+        (dependent_root / "2018" / folder_name).mkdir(parents=True)
+    for folder_name in ("23. album", "23. identity"):
+        (dependent_root / "2020" / folder_name).mkdir(parents=True)
+
+    report_path.parent.mkdir(parents=True)
+    service = DependentDirectoryReportService(
+        dependent_root,
+        report_path,
+        current_year=2026,
+    )
+    options = service.list_directory_category_options()
+
+    assert options["structure_source"] == "fallback_template"
+    assert options["template_year"] == "2020"
+    assert {item["key"] for item in options["categories"]} == {
+        "album",
+        "identity",
+    }
+
+
+def test_report_uses_minimal_creation_fallback_when_no_template_exists(tmp_path):
+    dependent_root = tmp_path / "_Internal"
+    dependent_root.mkdir()
+    report_path = tmp_path / "Structure" / "__structure__" / (
+        "dependent_directory_report.json"
+    )
+    report_path.parent.mkdir(parents=True)
+
+    service = DependentDirectoryReportService(
+        dependent_root,
+        report_path,
+        current_year=2026,
+    )
+    options = service.list_directory_category_options()
+
+    assert options["structure_source"] == "minimal_fallback"
+    assert options["template_year"] is None
+    assert {item["key"] for item in options["categories"]} == {
+        "___[]",
+        "album",
+        "identity",
+    }
+
