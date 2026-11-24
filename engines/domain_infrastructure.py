@@ -89,7 +89,7 @@ def update_domain_property(
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
-            newline="\\n",
+            newline="\n",
             dir=path.parent,
             prefix=f".{path.name}.",
             suffix=".tmp",
@@ -97,7 +97,7 @@ def update_domain_property(
         ) as temporary_file:
             temporary_path = Path(temporary_file.name)
             json.dump(data, temporary_file, indent=2, ensure_ascii=False)
-            temporary_file.write("\\n")
+            temporary_file.write("\n")
 
         os.replace(temporary_path, path)
     finally:
