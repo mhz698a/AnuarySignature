@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
@@ -24,6 +23,10 @@ from character_visor.knowledge_wardrobe import (
     resolve_marker_knowledge_directories,
 )
 from domain_visor.theme import Theme
+from engines.domain_infrastructure import (
+    read_domain_property,
+    update_domain_property,
+)
 
 
 class DomainManagementDialog(QDialog):
@@ -47,6 +50,15 @@ class DomainManagementDialog(QDialog):
         self.base_path = Path(base_path).expanduser()
         self.years = sorted({int(year) for year in years})
         self.saved = False
+        try:
+            self.current_norm_baas = read_domain_property(
+                self.infrastructure_path,
+                self.domain_id,
+                self.current_name,
+                "norm_BaaS",
+            )
+        except (OSError, TypeError, ValueError):
+            self.current_norm_baas = ""
 
         self.setWindowTitle("Gestionar Dominio")
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -138,6 +150,20 @@ class DomainManagementDialog(QDialog):
         rename_row.addWidget(self.btn_revert)
         layout.addLayout(rename_row)
 
+        norm_baas_row = QHBoxLayout()
+        norm_baas_row.setSpacing(8)
+        norm_baas_row.addWidget(QLabel("Norm_BaaS:"))
+
+        self.txt_norm_baas = QLineEdit(self.current_norm_baas)
+        self.txt_norm_baas.setPlaceholderText("Norma BaaS del dominio")
+        self.txt_norm_baas.returnPressed.connect(self.save_norm_baas)
+        norm_baas_row.addWidget(self.txt_norm_baas, 1)
+
+        self.btn_save_norm_baas = QPushButton("Guardar")
+        self.btn_save_norm_baas.clicked.connect(self.save_norm_baas)
+        norm_baas_row.addWidget(self.btn_save_norm_baas)
+        layout.addLayout(norm_baas_row)
+
         self.knowledge_group = QGroupBox(
             "Armario y Referencias (Knowledge)",
             self,
@@ -210,6 +236,25 @@ class DomainManagementDialog(QDialog):
             )
             self.year_tabs.addTab(widget, str(year))
 
+    def save_norm_baas(self):
+        value = self.txt_norm_baas.text()
+        try:
+            update_domain_property(
+                self.infrastructure_path,
+                self.domain_id,
+                self.current_name,
+                "norm_BaaS",
+                value,
+            )
+            self.current_norm_baas = value
+            self.saved = True
+        except (OSError, TypeError, ValueError) as error:
+            QMessageBox.critical(
+                self,
+                "Error al guardar norm_BaaS",
+                f"No se pudo actualizar infrastructure.json: {error}",
+            )
+
     def rename_domain(self):
         new_name = self.txt_name.text().strip()
         if not new_name:
@@ -224,54 +269,20 @@ class DomainManagementDialog(QDialog):
             self.revert_name()
             return
 
-        if not self.infrastructure_path or not self.infrastructure_path.is_file():
-            QMessageBox.critical(
-                self,
-                "Error",
-                "No se encontró la ruta del archivo de infraestructura.",
-            )
-            return
-
         try:
-            with self.infrastructure_path.open("r", encoding="utf-8") as file:
-                data = json.load(file)
-
-            if not isinstance(data, list):
-                raise ValueError("La raíz de infrastructure.json debe ser una lista.")
-
-            updated_domain = False
-            for superdomain in data:
-                for domain in superdomain.get("domains", []):
-                    matches = (
-                        domain.get("id") == self.domain_id
-                        if self.domain_id
-                        else domain.get("domain") == self.current_name
-                    )
-                    if matches:
-                        domain["domain"] = new_name
-                        updated_domain = True
-                        break
-                if updated_domain:
-                    break
-
-            if not updated_domain:
-                QMessageBox.warning(
-                    self,
-                    "Dominio no encontrado",
-                    f"No se encontró el dominio '{self.current_name}' en infrastructure.json.",
-                )
-                return
-
-            with self.infrastructure_path.open("w", encoding="utf-8") as file:
-                json.dump(data, file, indent=2, ensure_ascii=False)
-                file.write("\n")
-
+            update_domain_property(
+                self.infrastructure_path,
+                self.domain_id,
+                self.current_name,
+                "domain",
+                new_name,
+            )
             self.current_name = new_name
             self.saved = True
             self.txt_name.setText(new_name)
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+        except (OSError, TypeError, ValueError) as error:
             QMessageBox.critical(
                 self,
                 "Error al renombrar dominio",
-                f"No se pudo actualizar infrastructure.json:\n{error}",
+                f"No se pudo actualizar infrastructure.json: {error}",
             )
