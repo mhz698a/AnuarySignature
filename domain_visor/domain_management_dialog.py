@@ -252,7 +252,7 @@ class DomainManagementDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Error al guardar norm_BaaS",
-                f"No se pudo actualizar infrastructure.json:\\n{error}",
+                f"No se pudo actualizar infrastructure.json: {error}",
             )
 
     def rename_domain(self):
@@ -284,5 +284,5 @@ class DomainManagementDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Error al renombrar dominio",
-                f"No se pudo actualizar infrastructure.json:\\n{error}",
+                f"No se pudo actualizar infrastructure.json: {error}",
             )
