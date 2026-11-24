@@ -22,7 +22,7 @@ class Domain:
     end_year: int
     years: list[Year]
     role: str
-    norm_baas: str
+    g_OS: str
 
     def __repr__(self):
         return f"Domain(id={self.id}, name={self.name}, range={self.range_text}, years_count={len(self.years)})"
@@ -109,9 +109,9 @@ def load_from_json(infrastructure_path: str, container_path: str) -> Container:
                 except Exception:
                     start_year, end_year = 0, 0
 
-                # Obtener rol y norm_baas
+                # Obtener rol y g-OS
                 role = dom_data.get("role", "")
-                norm_baas = dom_data.get("norm_BaaS", dom_data.get("norm_baas", ""))
+                g_OS = dom_data.get("g-OS", dom_data.get("g-OS", ""))
 
                 # Crear el objeto Domain (inicialmente sin años para referenciarlo)
                 domain_obj = Domain(
@@ -122,7 +122,7 @@ def load_from_json(infrastructure_path: str, container_path: str) -> Container:
                     end_year=end_year,
                     years=[],
                     role=role,
-                    norm_baas=norm_baas
+                    g_OS=g_OS
                 )
 
                 # Instanciar objetos Year y asociarles la referencia al Domain padre

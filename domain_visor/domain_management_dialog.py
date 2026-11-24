@@ -51,14 +51,14 @@ class DomainManagementDialog(QDialog):
         self.years = sorted({int(year) for year in years})
         self.saved = False
         try:
-            self.current_norm_baas = read_domain_property(
+            self.current_g_OS = read_domain_property(
                 self.infrastructure_path,
                 self.domain_id,
                 self.current_name,
-                "norm_BaaS",
+                "g-OS",
             )
         except (OSError, TypeError, ValueError):
-            self.current_norm_baas = ""
+            self.current_g_OS = ""
 
         self.setWindowTitle("Gestionar Dominio")
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -150,19 +150,19 @@ class DomainManagementDialog(QDialog):
         rename_row.addWidget(self.btn_revert)
         layout.addLayout(rename_row)
 
-        norm_baas_row = QHBoxLayout()
-        norm_baas_row.setSpacing(8)
-        norm_baas_row.addWidget(QLabel("Norm_BaaS:"))
+        g_OS_row = QHBoxLayout()
+        g_OS_row.setSpacing(8)
+        g_OS_row.addWidget(QLabel("g-OS:"))
 
-        self.txt_norm_baas = QLineEdit(self.current_norm_baas)
-        self.txt_norm_baas.setPlaceholderText("Norma BaaS del dominio")
-        self.txt_norm_baas.returnPressed.connect(self.save_norm_baas)
-        norm_baas_row.addWidget(self.txt_norm_baas, 1)
+        self.txt_g_OS = QLineEdit(self.current_g_OS)
+        self.txt_g_OS.setPlaceholderText("Norma BaaS del dominio")
+        self.txt_g_OS.returnPressed.connect(self.save_g_OS)
+        g_OS_row.addWidget(self.txt_g_OS, 1)
 
-        self.btn_save_norm_baas = QPushButton("Guardar")
-        self.btn_save_norm_baas.clicked.connect(self.save_norm_baas)
-        norm_baas_row.addWidget(self.btn_save_norm_baas)
-        layout.addLayout(norm_baas_row)
+        self.btn_save_g_OS = QPushButton("Guardar")
+        self.btn_save_g_OS.clicked.connect(self.save_g_OS)
+        g_OS_row.addWidget(self.btn_save_g_OS)
+        layout.addLayout(g_OS_row)
 
         self.knowledge_group = QGroupBox(
             "Armario y Referencias (Knowledge)",
@@ -236,22 +236,22 @@ class DomainManagementDialog(QDialog):
             )
             self.year_tabs.addTab(widget, str(year))
 
-    def save_norm_baas(self):
-        value = self.txt_norm_baas.text()
+    def save_g_OS(self):
+        value = self.txt_g_OS.text()
         try:
             update_domain_property(
                 self.infrastructure_path,
                 self.domain_id,
                 self.current_name,
-                "norm_BaaS",
+                "g-OS",
                 value,
             )
-            self.current_norm_baas = value
+            self.current_g_OS = value
             self.saved = True
         except (OSError, TypeError, ValueError) as error:
             QMessageBox.critical(
                 self,
-                "Error al guardar norm_BaaS",
+                "Error al guardar g-OS",
                 f"No se pudo actualizar infrastructure.json: {error}",
             )
 
